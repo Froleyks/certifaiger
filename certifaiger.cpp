@@ -265,6 +265,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "model and witness must be stratified\n";
     exit(1);
   }
+  MSG << "Circuits are stratified\n";
   check_base(*OutAIG(checks[0]), *witness);
   check_step(*OutAIG(checks[1]), *witness);
   check_property(*OutAIG(checks[2]), *model, *witness, shared);
