@@ -69,7 +69,7 @@ CXXFLAGS="$CXXFLAGS$options"
 checkdir "$AIGER"
 checkfile "$AIGER/aiger.h"
 
-INC="-I\${AIGER}"
+INC="-I\$(AIGER)"
 LIBS=""
 [ $debug = yes ] && LIBS="$LIBS"
 #--------------------------------------------------------------------------#
@@ -99,19 +99,19 @@ AIGER=$AIGER
 
 DEP=\$(filter-out build.hpp,\$(wildcard *.hpp))
 SRC=\$(sort \$(wildcard *.cpp))
-OBJ=\$(SRC:.cpp=.o) \${AIGER}/aiger.o
+OBJ=\$(SRC:.cpp=.o) \$(AIGER)/aiger.o
 INC=$INC
 LIBS=$LIBS
-COMPILE=\$(CXX) \$(CXXFLAGS)
+COMPILE=\$(CXX) \$(CXXFLAGS) \$(INC)
 
-%.o: %.cpp \$(DEP) makefile
-	\$(COMPILE) -c \$< \$(INC)
+%.o: %.cpp \$(DEP) build.hpp
+	\$(COMPILE) -c \$<
 
 all: certifaiger
-certifaiger: \$(OBJ) makefile build.hpp
+certifaiger: \$(OBJ) build.hpp
 	\$(COMPILE) -o \$@ \$(OBJ) \$(LIBS)
 
-build.hpp: VERSION makefile
+build.hpp: VERSION
 	./info.sh > \$@
 format:
 	clang-format -i *.[ch]pp
