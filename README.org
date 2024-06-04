@@ -1,0 +1,66 @@
+* Certifaiger
+[[https://github.com/Froleyks/certifaiger][Certifaiger]] checks the correctness of witnesses circuits in the [[https://github.com/arminbiere/aiger][AIGER]] format.
+
+** Quickstart
+
+#+begin_src bash
+cd certifaiger
+./build_dependencies.sh
+# If resets are not stratified
+# ./build_dependencies.sh qbf
+
+# Generates the cehcks, translates them to CNF and runs kissat
+./check_certificate.sh <model.aig> <witness.aig>
+#+end_src
+** Motivation
+Model checking is an essential technique for hardware design.
+For unsafe circuits, those that violate the property being check, it is usually easy to produce a trace to demonstrate the flaw.
+In the case where the model checking succeeds a certificate should be produced, that proofs that the property indeed holds for all possible traces.
+We propose /witness circuits/ as a format for these certificates.
+A witness circuit generalizes the concept of an inductive invariant.
+
+Instead of searching for an inductive invariant in the model itself, we find a different circuit -- the witness -- that simulates part of the model and has an inductive invariant.
+** Witness circuits
+To check if a witness circuit is valid for a given model, certifaiger performs 5 checks.
+For an AIGER circuit $C$ we use
+$R(L), F(L, \hat{L}), P(I, L)$
+to refer to the symbolic formulas encoding that
+the latches in $L$ are in their reset,
+the latches in $\hat{L}$ are equal to the /next/ of the matching latch in $L$,
+and finally the property holds on the inputs and latches in $I \cup L$, i.e. the /bad/ or /output/ is not set.
+These formulas can be encoded as combinatorial AIGER circuits, by replacing latches with inputs, resulting in a DAG with a single output and leafs ending in inputs or constants.
+
+For a model $C$ and witness circuit $C'$,
+let $R, F, P, I, L$ and their primed version be the formulas from above and the set of all inputs and latches in the respective circuit,
+$M$ is the intersection of latches and inputs between the two.
+The 5 checks are:
+| Reset      | $R(M) \Rightarrow R'(M)$                               |
+| Transition | $F(M,\hat{M}) \Rightarrow F'(M,\hat{M})$               |
+| Property   | $P'(I',L') \Rightarrow P(I,L)$                     |
+| Base       | $R'(L') \Rightarrow P'(I',L')$                         |
+| Step       | $(P'(L') \wedge F'(L', \hat{L'})) \Rightarrow P'(\hat{L'})$ |
+
+The validity of these formulas is checked by encoding their negation into combinatorial circuits, translated to CNF using [[https://github.com/arminbiere/aiger][aigtocnf]], and checking unsatisfiability with [[https://github.com/arminbiere/kissat][Kissat]] or any other SAT solver.
+The produced certificates of unsatisfiability may additionally be checked by a [[https://satcompetition.github.io/2023/downloads/proposals/drat_dpr.pdf][verified proof checker]].
+The entire certificate check is coNP in the size of the circuits.
+** Stratification
+A circuit is said to be stratified if the syntactic dependency graph induced by its reset function is acyclic.
+This is usually not a big restriction and fairly common in practice.
+The /semantic dependency graph/ is the subset of the syntactic dependency graph,
+where an edge $(a, b)$ indicates that a change in the value of $b$ can influence the value of $a$.
+In case both circuits are stratified,
+the Reset check above ensures that the set $M$ is at the bottom of the semantic dependency graph of either circuit,
+i.e. the reset of the latches in $M$ depend only on $M$.
+It follows that any reset of $M$ can be extended to a reset of $L$ and $L'$.
+
+If either circuit is not stratified, it is not guaranteed that a partial reset can be extended.
+Therefore, certifaiger implements the stronger check Reset^{\exists} if the polynomial stratification test fails.
+| Reset^{\exists} | $R(L) \Rightarrow \exist(L' \setminus L): R'(L')$ |
+The explicit quantifier is necessary as otherwise every extension to $L'$ of a reset in $C$ (reduced to $M$) would need to be a valid reset in $C'$.
+This very strong condition would be unlikely to hold if $C'$ introduces any additional latches.
+Since the formula is checked for validity, we have the quantifier alternation \exists\forall when encoding Reset^{\exists} and are no longer in coNP.
+In practice, certifaiger encodes Reset^{\exists} as a [[https://github.com/ltentrup/quabs][QAIGER]] circuit which is then translated to QCIR and checked with [[https://github.com/ltentrup/quabs][QuAbS]].
+Certifaiger will pick the appropriate Reset check without further interaction. However, note that the tool will return exit code 15 if a QAIGER formula was produced.
+See [[https://github.com/Froleyks/certifaiger/blob/main/check_certificate.sh][check_certificate.sh]] for more details.
+** References
+The theory this tool is based on is detailed in our papers.
