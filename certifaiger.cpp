@@ -178,9 +178,10 @@ bool stratified(aiger *aig) {
   return true;
 }
 
-unsigned check_reset(aiger *check, const aiger *model, const aiger *witness,
-                     const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // R|M => R'|M
+unsigned
+check_reset_exists(aiger *check, const aiger *model, const aiger *witness,
+                   const std::vector<std::pair<unsigned, unsigned>> &shared) {
+  // R(L) => \exist(L'\L): R'(L')
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
   unsigned max_IL{};
@@ -190,6 +191,27 @@ unsigned check_reset(aiger *check, const aiger *model, const aiger *witness,
     max_IL = inputs(model).back().lit;
   std::vector<unsigned> model_latch_is_reset;
   model_latch_is_reset.reserve(model->num_latches);
+  for (auto [l, r] : latches(model) | resets)
+    model_latch_is_reset.push_back(eq(check, model_m.at(l), model_m.at(r)));
+  std::vector<unsigned> witness_latch_is_reset;
+  witness_latch_is_reset.reserve(witness->num_latches);
+  for (auto [l, r] : latches(witness) | resets)
+    witness_latch_is_reset.push_back(
+        eq(check, witness_m.at(l), witness_m.at(r)));
+  unsigned model_is_reset = conj(check, model_latch_is_reset);
+  unsigned witness_is_reset = conj(check, witness_latch_is_reset);
+  unsigned bad = conj(check, model_is_reset, aiger_not(witness_is_reset));
+  aiger_add_output(check, bad, "\forall(L) \exist(L'\\L): R(L) ^ -R'(L')");
+  return max_IL;
+}
+
+void check_reset(aiger *check, const aiger *model, const aiger *witness,
+                 const std::vector<std::pair<unsigned, unsigned>> &shared) {
+  // R(M) => R'(M)
+  auto [model_m, witness_m] =
+      map_concatenated_circuits(check, model, witness, shared);
+  std::vector<unsigned> model_latch_is_reset;
+  model_latch_is_reset.reserve(shared.size());
   std::vector<unsigned> witness_latch_is_reset;
   witness_latch_is_reset.reserve(shared.size());
   for (auto [model_l, witness_l] : shared) {
@@ -204,14 +226,13 @@ unsigned check_reset(aiger *check, const aiger *model, const aiger *witness,
   unsigned model_is_reset = conj(check, model_latch_is_reset);
   unsigned witness_is_reset = conj(check, witness_latch_is_reset);
   unsigned bad = conj(check, model_is_reset, aiger_not(witness_is_reset));
-  aiger_add_output(check, bad, "R|M ^ -R'|M");
-  return max_IL;
+  aiger_add_output(check, bad, "R(M) ^ -R'(M)");
 }
 
 void check_transition(
     aiger *check, const aiger *model, const aiger *witness,
     const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // F|M => F'|M
+  // F(M,Mn) => F'(M,Mn)
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
   std::vector<unsigned> model_latch_is_next;
@@ -231,21 +252,21 @@ void check_transition(
   unsigned model_is_next = conj(check, model_latch_is_next);
   unsigned witness_is_next = conj(check, witness_latch_is_next);
   unsigned bad = conj(check, model_is_next, aiger_not(witness_is_next));
-  aiger_add_output(check, bad, "F|M ^ -F'|M");
+  aiger_add_output(check, bad, "F(M,Mn) ^ -F'(M,Mn)");
 }
 
 void check_property(aiger *check, const aiger *model, const aiger *witness,
                     const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // P' => P
+  // P'(I',L') => P(I,L)
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
   unsigned bad = conj(check, aiger_not(witness_m.at(output(witness))),
                       model_m.at(output(model)));
-  aiger_add_output(check, bad, "P' ^ -P");
+  aiger_add_output(check, bad, "P'(I',L') ^ -P(I,L)");
 }
 
 void check_base(aiger *check, const aiger *witness) {
-  // R' => P'
+  // R'(L') => P'(I',L')
   std::vector<unsigned> m{empty_map(witness)};
   map_inputs_and_latches(check, m, witness);
   map_ands(check, m, witness);
@@ -255,11 +276,11 @@ void check_base(aiger *check, const aiger *witness) {
     latch_is_reset.push_back(eq(check, m.at(l), m.at(r)));
   unsigned aig_is_reset = conj(check, latch_is_reset);
   unsigned bad = conj(check, aig_is_reset, m.at(output(witness)));
-  aiger_add_output(check, bad, "R' ^ -P'");
+  aiger_add_output(check, bad, "R'(L') ^ -P'(I',L')");
 }
 
 void check_step(aiger *check, const aiger *witness) {
-  // (P' ^ F) => Pn'
+  // (P'(L') ^ F'(L', Ln')) => P'(Ln')
   auto [current, next] = map_concatenated_circuits(check, witness, witness);
   std::vector<unsigned> latch_is_next;
   latch_is_next.reserve(witness->num_latches);
@@ -269,7 +290,7 @@ void check_step(aiger *check, const aiger *witness) {
   unsigned premise =
       conj(check, aiger_not(current.at(output(witness))), aig_is_next);
   unsigned bad = conj(check, premise, next.at(output(witness)));
-  aiger_add_output(check, bad, "P' ^ F ^ -Pn'");
+  aiger_add_output(check, bad, "P'(L') ^ F'(L', Ln') ^ -P'(Ln')");
 }
 
 int main(int argc, char *argv[]) {
@@ -282,18 +303,19 @@ int main(int argc, char *argv[]) {
       shared_latches(*model, *witness);
 
   const bool circuits_stratified = stratified(*model) && stratified(*witness);
-  const unsigned highest_exists_latch =
-      check_reset(*OutAIG(checks[0]), *model, *witness, shared);
+  if (circuits_stratified) {
+    MSG << "Stratified reset definition\n";
+    check_reset(*OutAIG(checks[0]), *model, *witness, shared);
+  } else {
+    MSG << "Non-stratified reset definition\n";
+    MSG << "Generating quantified circuit\n";
+    const unsigned highest_exists_latch =
+        check_reset_exists(*OutAIG(checks[0]), *model, *witness, shared);
+    quantify(checks[0], highest_exists_latch);
+  }
   check_transition(*OutAIG(checks[1]), *model, *witness, shared);
   check_property(*OutAIG(checks[2]), *model, *witness, shared);
   check_base(*OutAIG(checks[3]), *witness);
   check_step(*OutAIG(checks[4]), *witness);
-  if (circuits_stratified) {
-    MSG << "Stratified reset definition\n";
-    return 0;
-  } else {
-    MSG << "Non-stratified reset definition\n";
-    quantify(checks[0], highest_exists_latch);
-    return 15;
-  }
+  if (!circuits_stratified) return 15;
 }
