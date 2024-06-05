@@ -31,13 +31,18 @@ to refer to the symbolic formulas encoding that:
 
 These formulas can be encoded as combinatorial AIGER circuits by replacing latches with inputs, resulting in a DAG with a single output and leaves ending in inputs or constants.
 
+Note that we use a (slightly) modified version of the AIGER 1.9 format.
+Our witness circuits may require the use of /reset functions/,
+that is, latches may be reset to other latches or gates,
+instead of just constants (or stay uninitialized).
+
 For a model $C$ and witness circuit $C'$,
 let $R, F, P, I, L$ and their primed version be the formulas from above and the set of all inputs and latches in the respective circuit,
 $M$ is the intersection of latches and inputs between the two.
 The five checks are:
 | Reset      | $R(M) \Rightarrow R'(M)$                               |
 | Transition | $F(M,\hat{M}) \Rightarrow F'(M,\hat{M})$               |
-| Property   | $P'(I',L') \Rightarrow P(I,L)$                     |
+| Property   | $P'(I',L') \Rightarrow P(I,L)$                         |
 | Base       | $R'(L') \Rightarrow P'(I',L')$                         |
 | Step       | $(P'(L') \wedge F'(L', \hat{L'})) \Rightarrow P'(\hat{L'})$ |
 
@@ -65,6 +70,21 @@ Since the formula is checked for validity, we have the quantifier alternation \e
 In practice, Certifaiger encodes Reset^{\exists} as a [[https://github.com/ltentrup/quabs][QAIGER]] circuit which is then translated to QCIR and checked with [[https://github.com/ltentrup/quabs][QuAbS]].
 Certifaiger will pick the appropriate Reset check without further interaction; however, note that the tool will return exit code 15 if a QAIGER formula was produced.
 See [[https://github.com/Froleyks/certifaiger/blob/main/check_certificate.sh][check_certificate.sh]] for more details.
+** Witness Format
+Witness circuits are normal AIGER circuits.
+They can include a section in the comments to express the mapping of shared latches:
+#+begin_example
+c
+WITNESS_CIRCUIT 2 b2sum 9c7b52...  model.aag
+2 2
+4 4
+#+end_example
+The section starts with ~WITNESS_CIRCUIT~ followed by the number of shared inputs and latches $n$.
+The next $n$ lines express which input/latch in the model map to which input/latch in the witness.
+While not necessary, it is recommended to include some identifying information about the corresponding model after the number of shared latches.
+
+If no such section is found, Certifaiger assumes that all inputs and latches of the model are mapped to the same indecencies in the witness.
+Checkout the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
 ** References
 The theory this tool is based on is detailed in our papers.
 Beyond that, we demonstrate how to certify the combination of different preprocessing techniques and model checking algorithms with witness circuits.
