@@ -179,7 +179,7 @@ void check_reset_exists(
   unsigned model_inputs_end{};
   auto [model_m, witness_m] = map_concatenated_circuits(
       check, model, witness, shared, &model_inputs_end);
-  static constexpr unsigned EXIST = 2, ALL = 3, MAX_NAME_SIZE = 14;
+  static constexpr unsigned EXIST = 0, ALL = 1, MAX_NAME_SIZE = 14;
   for (unsigned l : inputs(check) | lits) {
     const bool in_model = l < model_inputs_end;
     aiger_symbol *input = aiger_is_input(check, l);
