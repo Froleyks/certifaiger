@@ -76,9 +76,11 @@ void map_ands(aiger *to, std::vector<unsigned> &m, const aiger *from) {
 std::pair<std::vector<unsigned>, std::vector<unsigned>>
 map_concatenated_circuits(
     aiger *combined, const aiger *left, const aiger *right,
-    const std::vector<std::pair<unsigned, unsigned>> &shared = {}) {
+    const std::vector<std::pair<unsigned, unsigned>> &shared = {},
+    unsigned *model_inputs_end = nullptr) {
   std::vector<unsigned> left_m{empty_map(left)};
   map_inputs_and_latches(combined, left_m, left);
+  if (model_inputs_end) *model_inputs_end = size(combined) + 2;
   std::vector<unsigned> right_m{empty_map(right)};
   for (auto [m, w] : shared)
     map(right_m, w, left_m.at(m));
@@ -94,9 +96,9 @@ map_concatenated_circuits(
 std::vector<std::pair<unsigned, unsigned>>
 shared_latches(const aiger *model, const aiger *witness) {
   std::vector<std::pair<unsigned, unsigned>> shared;
-  constexpr int MAX_DIGITS{10};
-  constexpr const char *MAPPING_START = "WITNESS_CIRCUIT";
-  constexpr int MAPPING_START_SIZE = 15;
+  static constexpr int MAX_DIGITS{10};
+  static constexpr const char *MAPPING_START = "WITNESS_CIRCUIT";
+  static constexpr int MAPPING_START_SIZE = 15;
   unsigned num_shared{};
   char *c, **p{witness->comments};
   for (; (c = *p) && (strncmp(c, MAPPING_START, MAPPING_START_SIZE)); p++) {};
@@ -126,19 +128,6 @@ shared_latches(const aiger *model, const aiger *witness) {
   }
   assert(!(num_shared + 1) && "Witness mapping is incomplete");
   return shared;
-}
-
-// Adds quantifiers to the circuit. Exist (I U L) Forall (I' U L')\(I U L)
-void quantify(const char *reset_path, unsigned highest_exists_latch) {
-  InAIG reset_aig(reset_path);
-  std::ofstream reset_file(reset_path, std::ios::app);
-  assert(reset_file.is_open() && "Reset check could not be opended");
-  unsigned i{};
-  for (unsigned l : inputs(*reset_aig) | lits) {
-    const bool exists = l <= highest_exists_latch;
-    reset_file << "i" << (i++) << ' ' << (exists ? 3 : 2) << ' '
-               << (exists ? 'm' : 'w') << l << '\n';
-  }
 }
 
 // Checks if the circuit is stratified (no cyclic dependencies in the reset
@@ -178,17 +167,25 @@ bool stratified(aiger *aig) {
   return true;
 }
 
-unsigned
-check_reset_exists(aiger *check, const aiger *model, const aiger *witness,
-                   const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // R(L) => \exist(L'\L): R'(L')
-  auto [model_m, witness_m] =
-      map_concatenated_circuits(check, model, witness, shared);
-  unsigned max_IL{};
-  if (latches(model).size())
-    max_IL = latches(model).back().lit;
-  else if (inputs(model).size())
-    max_IL = inputs(model).back().lit;
+void check_reset_exists(
+    aiger *check, const aiger *model, const aiger *witness,
+    const std::vector<std::pair<unsigned, unsigned>> &shared) {
+  // R(L) => exist(L'\L): R'(L')
+  MSG << "Non-stratified reset definition\n";
+  MSG << "Generating quantified circuit\n";
+  unsigned model_inputs_end{};
+  auto [model_m, witness_m] = map_concatenated_circuits(
+      check, model, witness, shared, &model_inputs_end);
+  static constexpr unsigned ALL = 1, EXIST = 0, MAX_NAME_SIZE = 13;
+  for (unsigned l : inputs(check) | lits) {
+    const bool in_model = l < model_inputs_end;
+    assert(aiger_is_input(check, l));
+    char *name = aiger_is_input(check, l)->name;
+    name = static_cast<char *>(malloc(MAX_NAME_SIZE));
+    assert(name);
+    std::snprintf(name, MAX_NAME_SIZE, "%d %c%d", in_model ? ALL : EXIST,
+                  in_model ? 'm' : 'w', l);
+  }
   std::vector<unsigned> model_latch_is_reset;
   model_latch_is_reset.reserve(model->num_latches);
   for (auto [l, r] : latches(model) | resets)
@@ -201,13 +198,13 @@ check_reset_exists(aiger *check, const aiger *model, const aiger *witness,
   unsigned model_is_reset = conj(check, model_latch_is_reset);
   unsigned witness_is_reset = conj(check, witness_latch_is_reset);
   unsigned bad = conj(check, model_is_reset, aiger_not(witness_is_reset));
-  aiger_add_output(check, bad, "\forall(L) \exist(L'\\L): R(L) ^ -R'(L')");
-  return max_IL;
+  aiger_add_output(check, bad, "forall(L) exist(L'\\L): R(L) ^ -R'(L')");
 }
 
 void check_reset(aiger *check, const aiger *model, const aiger *witness,
                  const std::vector<std::pair<unsigned, unsigned>> &shared) {
   // R(M) => R'(M)
+  MSG << "Stratified reset definition\n";
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
   std::vector<unsigned> model_latch_is_reset;
@@ -303,16 +300,10 @@ int main(int argc, char *argv[]) {
       shared_latches(*model, *witness);
 
   const bool circuits_stratified = stratified(*model) && stratified(*witness);
-  if (circuits_stratified) {
-    MSG << "Stratified reset definition\n";
+  if (circuits_stratified)
     check_reset(*OutAIG(checks[0]), *model, *witness, shared);
-  } else {
-    MSG << "Non-stratified reset definition\n";
-    MSG << "Generating quantified circuit\n";
-    const unsigned highest_exists_latch =
-        check_reset_exists(*OutAIG(checks[0]), *model, *witness, shared);
-    quantify(checks[0], highest_exists_latch);
-  }
+  else
+    check_reset_exists(*OutAIG(checks[0]), *model, *witness, shared);
   check_transition(*OutAIG(checks[1]), *model, *witness, shared);
   check_property(*OutAIG(checks[2]), *model, *witness, shared);
   check_base(*OutAIG(checks[3]), *witness);
