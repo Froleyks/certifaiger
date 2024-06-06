@@ -105,7 +105,9 @@ shared_inputs_latches(const aiger *model, const aiger *witness) {
   for (; (c = *p) && (strncmp(c, MAPPING_START, MAPPING_START_SIZE)); p++) {};
   if (!c) {
     MSG << "No witness mapping found, using default\n";
-    shared.reserve(model->num_latches);
+    shared.reserve(model->num_inputs + model->num_latches);
+    for (unsigned l : inputs(model) | lits)
+      shared.emplace_back(l, l);
     for (unsigned l : latches(model) | lits)
       shared.emplace_back(l, l);
     return shared;
