@@ -95,7 +95,7 @@ map_concatenated_circuits(
 // If no mapping is found, it is assumed that the entire model is embedded at
 // the beginning of the witness.
 std::vector<std::pair<unsigned, unsigned>>
-shared_latches(const aiger *model, const aiger *witness) {
+shared_inputs_latches(const aiger *model, const aiger *witness) {
   std::vector<std::pair<unsigned, unsigned>> shared;
   static constexpr int MAX_DIGITS{10};
   static constexpr const char *MAPPING_START = "WITNESS_CIRCUIT";
@@ -299,7 +299,7 @@ int main(int argc, char *argv[]) {
   InAIG model(model_path);
   InAIG witness(witness_path);
   std::vector<std::pair<unsigned, unsigned>> shared =
-      shared_latches(*model, *witness);
+      shared_inputs_latches(*model, *witness);
 
   const bool circuits_stratified = stratified(*model) && stratified(*witness);
   if (circuits_stratified)

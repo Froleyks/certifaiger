@@ -72,7 +72,7 @@ Certifaiger will pick the appropriate Reset check without further interaction; h
 See [[https://github.com/Froleyks/certifaiger/blob/main/check_certificate.sh][check_certificate.sh]] for more details.
 ** Witness Format
 Witness circuits are normal AIGER circuits.
-They can include a section in the comments to express the mapping of shared latches:
+They can include a section in the comments to express the mapping of shared inputs and latches:
 #+begin_example
 c
 WITNESS_CIRCUIT 2 b2sum 9c7b52...  model.aag
@@ -81,7 +81,7 @@ WITNESS_CIRCUIT 2 b2sum 9c7b52...  model.aag
 #+end_example
 The section starts with ~WITNESS_CIRCUIT~ followed by the number of shared inputs and latches $n$.
 The next $n$ lines express which input/latch in the model map to which input/latch in the witness.
-While not necessary, it is recommended to include some identifying information about the corresponding model after the number of shared latches.
+While not necessary, it is recommended to include some identifying information about the corresponding model after the number of shared variables.
 
 If no such section is found, Certifaiger assumes that all inputs and latches of the model are mapped to the same indecencies in the witness.
 Checkout the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
