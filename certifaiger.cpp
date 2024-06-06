@@ -177,14 +177,14 @@ void check_reset_exists(
   unsigned model_inputs_end{};
   auto [model_m, witness_m] = map_concatenated_circuits(
       check, model, witness, shared, &model_inputs_end);
-  static constexpr unsigned EXIST = 2, ALL = 3, MAX_NAME_SIZE = 13;
+  static constexpr unsigned EXIST = 2, ALL = 3, MAX_NAME_SIZE = 14;
   for (unsigned l : inputs(check) | lits) {
     const bool in_model = l < model_inputs_end;
-    assert(aiger_is_input(check, l));
-    char *name = aiger_is_input(check, l)->name;
-    name = static_cast<char *>(malloc(MAX_NAME_SIZE));
-    assert(name);
-    std::snprintf(name, MAX_NAME_SIZE, "%d %c%d", in_model ? EXIST : ALL,
+    aiger_symbol *input = aiger_is_input(check, l);
+    assert(input);
+    input->name = static_cast<char *>(malloc(MAX_NAME_SIZE));
+    assert(input->name);
+    std::snprintf(input->name, MAX_NAME_SIZE, "%d %c%d", in_model ? EXIST : ALL,
                   in_model ? 'm' : 'w', l);
   }
   std::vector<unsigned> model_latch_is_reset;
