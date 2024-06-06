@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <charconv>
 #include <cstring>
@@ -176,14 +177,14 @@ void check_reset_exists(
   unsigned model_inputs_end{};
   auto [model_m, witness_m] = map_concatenated_circuits(
       check, model, witness, shared, &model_inputs_end);
-  static constexpr unsigned ALL = 1, EXIST = 0, MAX_NAME_SIZE = 13;
+  static constexpr unsigned EXIST = 2, ALL = 3, MAX_NAME_SIZE = 13;
   for (unsigned l : inputs(check) | lits) {
     const bool in_model = l < model_inputs_end;
     assert(aiger_is_input(check, l));
     char *name = aiger_is_input(check, l)->name;
     name = static_cast<char *>(malloc(MAX_NAME_SIZE));
     assert(name);
-    std::snprintf(name, MAX_NAME_SIZE, "%d %c%d", in_model ? ALL : EXIST,
+    std::snprintf(name, MAX_NAME_SIZE, "%d %c%d", in_model ? EXIST : ALL,
                   in_model ? 'm' : 'w', l);
   }
   std::vector<unsigned> model_latch_is_reset;
@@ -198,7 +199,7 @@ void check_reset_exists(
   unsigned model_is_reset = conj(check, model_latch_is_reset);
   unsigned witness_is_reset = conj(check, witness_latch_is_reset);
   unsigned bad = conj(check, model_is_reset, aiger_not(witness_is_reset));
-  aiger_add_output(check, bad, "forall(L) exist(L'\\L): R(L) ^ -R'(L')");
+  aiger_add_output(check, bad, "exist(L) forall(L'\\L): R(L) ^ -R'(L')");
 }
 
 void check_reset(aiger *check, const aiger *model, const aiger *witness,
@@ -236,7 +237,8 @@ void check_transition(
   model_latch_is_next.reserve(shared.size());
   std::vector<unsigned> witness_latch_is_next;
   witness_latch_is_next.reserve(shared.size());
-  std::vector<unsigned> nexts(shared.size(), input(check));
+  std::vector<unsigned> nexts(shared.size());
+  std::ranges::generate(nexts, [check]() { return input(check); });
   for (unsigned i = 0; i < shared.size(); ++i) {
     auto [model_l, witness_l] = shared[i];
     if (is_latch(model, model_l))
