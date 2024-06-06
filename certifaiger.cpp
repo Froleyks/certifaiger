@@ -81,7 +81,7 @@ map_concatenated_circuits(
     unsigned *model_inputs_end = nullptr) {
   std::vector<unsigned> left_m{empty_map(left)};
   map_inputs_and_latches(combined, left_m, left);
-  if (model_inputs_end) *model_inputs_end = size(combined) + 2;
+  if (model_inputs_end) *model_inputs_end = size(combined);
   std::vector<unsigned> right_m{empty_map(right)};
   for (auto [m, w] : shared)
     map(right_m, w, left_m.at(m));
