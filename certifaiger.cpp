@@ -8,7 +8,9 @@
 #include <span>
 #include <vector>
 
-#include "build.hpp"
+#ifndef NO_BUILD_HPP
+# include "build.hpp"
+#endif
 
 #include "aiger.hpp"
 
