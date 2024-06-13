@@ -119,6 +119,19 @@ auto initialized =
 auto uninitialized =
     std::views::filter([](const auto &l) { return l.reset == l.lit; });
 
+bool inputs_latches_reencoded(aiger *aig) {
+  unsigned v{2};
+  for (unsigned l : inputs(aig) | lits) {
+    if (l != v) return false;
+    v += 2;
+  }
+  for (unsigned l : latches(aig) | lits) {
+    if (l != v) return false;
+    v += 2;
+  }
+  return true;
+}
+
 // Read only circuit for model and witness.
 struct InAIG {
   aiger *aig;
@@ -128,6 +141,12 @@ struct InAIG {
       std::cerr << "certifaiger: parse error reading " << path << ": " << err
                 << "\n";
       exit(1);
+    }
+    if (!inputs_latches_reencoded(aig)) {
+      std::cerr << "certifaiger: inputs and latches have to be reencoded even "
+                   "in ASCII format: "
+                << path << "\n";
+      exit(2);
     }
   }
   ~InAIG() { aiger_reset(aig); }
