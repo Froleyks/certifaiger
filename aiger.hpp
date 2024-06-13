@@ -20,6 +20,28 @@ bool is_input(const aiger *aig, unsigned l) {
 bool is_latch(const aiger *aig, unsigned l) {
   return aiger_is_latch(const_cast<aiger *>(aig), l);
 }
+unsigned simulates_lit(const aiger *aig, unsigned l) {
+  assert(is_input(aig, l) || is_latch(aig, l));
+  const char *name = aiger_get_symbol(const_cast<aiger *>(aig), l);
+  if (!name || name[0] != '=') return INVALID_LIT;
+  unsigned simulated_l;
+  [[maybe_unused]] auto [_, err] =
+      std::from_chars(name + 2, name + strlen(name), simulated_l);
+  assert(err == std::errc());
+  return simulated_l;
+}
+const aiger_symbol *simulates_input(const aiger *model, const aiger *witness,
+                                    unsigned l) {
+  const unsigned simulated_l = simulates_lit(witness, l);
+  if (simulated_l == INVALID_LIT) return nullptr;
+  return aiger_is_input(const_cast<aiger *>(model), simulated_l);
+}
+const aiger_symbol *simulates_latch(const aiger *model, const aiger *witness,
+                                    unsigned l) {
+  const unsigned simulated_l = simulates_lit(witness, l);
+  if (simulated_l == INVALID_LIT) return nullptr;
+  return aiger_is_latch(const_cast<aiger *>(model), simulated_l);
+}
 unsigned reset(const aiger *aig, unsigned l) {
   assert(is_latch(aig, l));
   return aiger_is_latch(const_cast<aiger *>(aig), l)->reset;
@@ -86,10 +108,12 @@ std::span<aiger_and> ands(const aiger *aig) {
 }
 
 auto lits = std::views::transform([](const auto &l) { return l.lit; });
-auto nexts = std::views::transform(
-    [](const auto &l) { return std::pair{l.lit, l.next}; });
-auto resets = std::views::transform(
-    [](const auto &l) { return std::pair{l.lit, l.reset}; });
+auto nexts = std::views::transform([](const auto &l) {
+  return std::pair{l.lit, l.next};
+});
+auto resets = std::views::transform([](const auto &l) {
+  return std::pair{l.lit, l.reset};
+});
 auto initialized =
     std::views::filter([](const auto &l) { return l.reset != l.lit; });
 auto uninitialized =

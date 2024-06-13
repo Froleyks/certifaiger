@@ -9,7 +9,7 @@
 #include <vector>
 
 #ifndef NO_BUILD_HPP
-# include "build.hpp"
+#include "build.hpp"
 #endif
 
 #include "aiger.hpp"
@@ -93,45 +93,31 @@ map_concatenated_circuits(
   return {left_m, right_m};
 }
 
-// Read the mapping of shared latches from the comments of the witness circuit.
-// If no mapping is found, it is assumed that the entire model is embedded at
-// the beginning of the witness.
-std::vector<std::pair<unsigned, unsigned>>
-shared_inputs_latches(const aiger *model, const aiger *witness) {
+// Read the mapping of shared latches from the symbol table of the witness
+// circuit. If no mapping is found, it is assumed that the entire model is
+// embedded at the beginning of the witness.
+auto shared_inputs_latches(const aiger *model, const aiger *witness) {
   std::vector<std::pair<unsigned, unsigned>> shared;
-  static constexpr int MAX_DIGITS{10};
-  static constexpr const char *MAPPING_START = "WITNESS_CIRCUIT";
-  static constexpr int MAPPING_START_SIZE = 15;
-  unsigned num_shared{};
-  char *c, **p{witness->comments};
-  for (; (c = *p) && (strncmp(c, MAPPING_START, MAPPING_START_SIZE)); p++) {};
-  if (!c) {
+  shared.reserve(model->num_inputs + model->num_latches);
+  for (unsigned l : inputs(witness) | lits) {
+    if (auto m = simulates_input(model, witness, l))
+      shared.emplace_back(m->lit, l);
+    else if (auto m = simulates_latch(model, witness, l))
+      shared.emplace_back(m->lit, l);
+  }
+  for (unsigned l : latches(witness) | lits) {
+    if (auto m = simulates_input(model, witness, l))
+      shared.emplace_back(m->lit, l);
+    else if (auto m = simulates_latch(model, witness, l))
+      shared.emplace_back(m->lit, l);
+  }
+  if (shared.empty()) {
     MSG << "No witness mapping found, using default\n";
-    shared.reserve(model->num_inputs + model->num_latches);
     for (unsigned l : inputs(model) | lits)
       shared.emplace_back(l, l);
     for (unsigned l : latches(model) | lits)
       shared.emplace_back(l, l);
-    return shared;
   }
-  [[maybe_unused]] auto [_, err] =
-      std::from_chars(c + MAPPING_START_SIZE + 1,
-                      c + MAPPING_START_SIZE + 1 + MAX_DIGITS, num_shared);
-  assert(err == std::errc());
-  MSG << "Model and witness share " << num_shared << " latches\n";
-  shared.reserve(num_shared);
-  for (p++; num_shared-- && (c = *p); p++) {
-    unsigned l_model, l_witness;
-    auto [end, err] = std::from_chars(c, c + MAX_DIGITS, l_model);
-    [[maybe_unused]] auto [_, err2] =
-        std::from_chars(end + 1, end + 1 + MAX_DIGITS, l_witness);
-    assert(err == std::errc() && err2 == std::errc());
-    // I can't think of an application where this is restricting.
-    assert(is_input(model, l_model) || is_latch(model, l_model));
-    assert(is_input(witness, l_witness) || is_latch(witness, l_witness));
-    shared.emplace_back(l_model, l_witness);
-  }
-  assert(!(num_shared + 1) && "Witness mapping is incomplete");
   return shared;
 }
 

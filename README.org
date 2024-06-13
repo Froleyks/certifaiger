@@ -52,6 +52,7 @@ The entire certificate check is coNP in the size of the circuits.
 ** Stratification
 A circuit is said to be stratified if the syntactic dependency graph induced by its reset function is acyclic.
 This is usually not a big restriction and fairly common in practice.
+Since in the original AIGER format latches can only be reset to constants, stratification is trivial.
 The /semantic dependency graph/ is the subset of the syntactic dependency graph,
 where an edge $(a, b)$ indicates that
 an assignment exists where a change in $b$ would imply a change in $a$.
@@ -71,19 +72,20 @@ In practice, Certifaiger encodes Reset^{\exists} as a [[https://github.com/ltent
 Certifaiger will pick the appropriate Reset check without further interaction; however, note that the tool will return exit code 15 if a QAIGER formula was produced.
 See [[https://github.com/Froleyks/certifaiger/blob/main/check_certificate.sh][check_certificate.sh]] for more details.
 ** Witness Format
-Witness circuits are normal AIGER circuits.
-They can include a section in the comments to express the mapping of shared inputs and latches:
-#+begin_example
-c
-WITNESS_CIRCUIT 2 b2sum 9c7b52...  model.aag
-2 2
-4 4
-#+end_example
-The section starts with ~WITNESS_CIRCUIT~ followed by the number of shared inputs and latches $n$.
-The next $n$ lines express which input/latch in the model map to which input/latch in the witness.
-While not necessary, it is recommended to include some identifying information about the corresponding model after the number of shared variables.
+Witness circuits are normal AIGER circuits in either ASCII or binary format.
 
-If no such section is found, Certifaiger assumes that all inputs and latches of the model are mapped to the same indices in the witness.
+Both the Reset and Transition checks are defined on the set of intersecting inputs and latches $M$.
+Requiring the witness circuit to keep the same variable indexing for $M$ would lead to gaps in the variable indexing.
+This, in turn, would prohibit storing the witness in the binary format since it requires the inputs and latches to be indexed consecutively before any gate.
+Instead, the witness can store an explicit mapping of its inputs and latches to the simulated literals in the model in its symbol table.
+Other information may be stored, but for elements of $M$ the /name/ must start with '=' followed by the simulated literal in the model.
+#+begin_example
+l0 = 2
+l1 = 4
+#+end_example
+To allow the translation between the two formats without breaking the mapping, Certifaiger enforces that the inputs and latches are indexed consecutively even in the ASCII format.
+
+If no mapping information is found, Certifaiger assumes that all inputs and latches of the model are mapped to the same indices in the witness.
 Checkout the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
 ** References
 The theory this tool is based on is detailed in our papers.
