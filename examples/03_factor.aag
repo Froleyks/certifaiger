@@ -1,0 +1,24 @@
+aag 10 1 2 1 7
+2
+4 13
+6 19
+20
+8 5 2
+10 4 3
+12 11 9
+14 7 2
+16 6 3
+18 17 15
+20 7 4
+c
+After forwarding the transients can be replaced by constants and propagated out
+to get the factor circuit. The state space is depicted below.
+All edges corresponding to the low input are selfloops.
+-------------------------------------------------------------------------------
+Inital
+v
+00 <---> 11
+     1
+01 <---> 10
+          ^
+         Bad

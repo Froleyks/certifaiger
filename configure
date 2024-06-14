@@ -110,7 +110,10 @@ COMPILE=\$(CXX) \$(CXXFLAGS) \$(INC)
 all: certifaiger
 certifaiger: \$(OBJ) build.hpp
 	\$(COMPILE) -o \$@ \$(OBJ) \$(LIBS)
-
+test: certifaiger
+	./check_certificate.sh examples/01_model.aag examples/06_witness.aag
+	./check_certificate.sh examples/02_forward.aag examples/05_forward_witness.aag
+	./check_certificate.sh examples/03_factor.aag examples/04_factor_witness.aag
 build.hpp: VERSION
 	./info.sh > \$@
 format:
