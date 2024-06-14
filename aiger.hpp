@@ -51,7 +51,9 @@ unsigned next(const aiger *aig, unsigned l) {
   return aiger_is_latch(const_cast<aiger *>(aig), l)->next;
 }
 unsigned output(const aiger *aig) {
-  if (aig->num_outputs)
+  if (aig->num_bad)
+    return aig->bad[0].lit;
+  else if (aig->num_outputs)
     return aig->outputs[0].lit;
   else
     return aiger_false;

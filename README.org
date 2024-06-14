@@ -46,6 +46,9 @@ The five checks are:
 | Base       | $R'(L') \Rightarrow P'(I',L')$                         |
 | Step       | $(P'(L') \wedge F'(L', \hat{L'})) \Rightarrow P'(\hat{L'})$ |
 
+For a witness and model that pass the first three checks, the witness is said to simulate the model.
+The last two check the inductiveness of the property in the witness circuit.
+
 The validity of these formulas is checked by encoding their negation into combinatorial circuits, translated to CNF using [[https://github.com/arminbiere/aiger][aigtocnf]], and checking unsatisfiability with [[https://github.com/arminbiere/kissat][Kissat]] or any other SAT solver.
 The produced certificates of unsatisfiability may additionally be checked by a [[https://satcompetition.github.io/2023/downloads/proposals/drat_dpr.pdf][verified proof checker]].
 The entire certificate check is coNP in the size of the circuits.
@@ -82,10 +85,14 @@ Other information may be stored, but for elements of $M$ the /name/ must start w
 #+begin_example
 l0 = 2
 l1 = 4
+c
+WITNESS o0 model.aig shasum 9f1747da5a7dd981c9dac13f4077c8e31c9ce50d
 #+end_example
 To allow the translation between the two formats without breaking the mapping, Certifaiger enforces that the inputs and latches are indexed consecutively even in the ASCII format.
 
-If no mapping information is found, Certifaiger assumes that all inputs and latches of the model are mapped to the same indices in the witness.
+While not required it is recommended to include a comment starting with 'WITNESS' followed by the property being certified and the name of the model file. Additionally, a hash may be included.
+
+If no mapping information is found, Certifaiger assumes that all inputs and latches of the model are mapped to the same indices in the witness and the first bad or in absence the first output is certified.
 Checkout the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
 ** References
 The theory this tool is based on is detailed in our papers.
