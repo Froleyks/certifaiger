@@ -25,10 +25,11 @@ l1 = 6
 l2 = 8
 l3 = 10
 c
-WITNESS o0 02_forward.aig shasum 500495476e42afb28b33eb7b89fffbcd3469b3f4
+WITNESS o0 02_forward.aig shasum 5f2041bbc413c666d41578926e2bffdb431d3f2b
 To transform the factor witness into a witness for the unfactored circuit (02_forward),
 we need to add back the transients with their reset and transition definition
 as in the forward circuit. Additionally we need to strengthen the property
 of the factor witness (here 34) with the fact that the transients indeed have their
 constant value (36). Their combination (38) is inductive in the witness and the circuit
 simulates the forward circuit.
+../check_certificate.sh 02_forward.aag 05_forward_witness.aag

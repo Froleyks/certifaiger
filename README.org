@@ -12,6 +12,8 @@ cd certifaiger
 # Generates the checks, translates them to CNF, and runs kissat
 ./check_certificate.sh <model.aig> <witness.aig>
 #+end_src
+
+Checkout the step-by-step [[https://github.com/Froleyks/certifaiger/blob/main/examples][example]].
 ** Motivation
 Model checking is an essential technique for hardware design.
 For unsafe circuits, those that violate the property being checked, it is usually easy to produce a trace to demonstrate the flaw.

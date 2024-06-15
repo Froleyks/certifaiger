@@ -53,7 +53,10 @@ the original property (31) by adding three things:
       in the original model).
 - 59: If the circuit is fully initialized (6) then the property of the
       forward witness holds.
-The final witness circuit certifies both the BMC of depth 2 part required
-for the forwarding and the unbound proof produced by IC3.
+The final witness circuit certifies both the BMC of depth 2 part (required
+for the forwarding) and the unbound proof produced by IC3.
 Note that this circuit is not fully reencoded for reasons of readability,
 however inputs and latches are.
+../check_certificate.sh 01_model.aag 06_witness.aag
+This final check is the only one needed to certify the entire model
+checking process. The others are included merely for illustation.

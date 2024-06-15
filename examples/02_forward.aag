@@ -16,8 +16,9 @@ aag 15 1 4 1 10
 28 23 6
 30 11 8
 c
+As an example preprocessing technique we apply temporal decomposition.
 Ternary simulation of the model reveals 4 and 6 as transients with a duration of 2.
-Forwarding the circuit by 2 steps (which doesen't change the reset),
+We forward the circuit by 2 steps (which doesen't change the reset)
 and set the transients to their constant values.
  2  X  X  X  X  X
  4  0  1  1  1  1
