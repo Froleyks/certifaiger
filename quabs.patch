@@ -1,0 +1,11 @@
+--- CMakeLists.txt	2024-06-18 09:28:35.800749637 +0200
++++ new_CMakeLists.txt	2024-06-18 09:28:31.389531696 +0200
+@@ -27,7 +27,7 @@
+ # cryptominisat
+ ExternalProject_Add(cmsat
+     GIT_REPOSITORY https://github.com/msoos/cryptominisat.git
+-    GIT_TAG 5.6.8
++    GIT_TAG 5.11.21
+ 	CMAKE_GENERATOR "Unix Makefiles"
+     CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release -DSTATICCOMPILE=ON -DNOM4RI=ON
+     BUILD_COMMAND make

@@ -1,0 +1,5 @@
+format:
+  max_subgroups_hwrap: 3
+  line_width: 90
+markup:
+  enable_markup: false

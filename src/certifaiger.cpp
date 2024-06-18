@@ -8,10 +8,6 @@
 #include <span>
 #include <vector>
 
-#ifndef NO_BUILD_HPP
-#include "build.hpp"
-#endif
-
 #include "aiger.hpp"
 
 #ifdef QUIET

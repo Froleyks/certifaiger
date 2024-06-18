@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ x"$CERTIFAIGER" = x ] && CERTIFAIGER="$DIR/certifaiger"
+[ x"$SAT" = x ] && SAT="$DIR/kissat/kissat"
+[ x"$AIGTOCNF" = x ] && AIGTOCNF="$DIR/aiger/aigtocnf"
+# non-stratified reset only
+[ x"$QAIGER2QCIR" = x ] && QAIGER2QCIR="$DIR/quabs/qaiger2qcir"
+[ x"$QUABS" = x ] && QUABS="$DIR/quabs/quabs"
+TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger-XXXXXXXX)
+
+die() {
+    printf "$1\n"
+    exit 1
+}
+check_executable() {
+    path=${!1}
+    name=${1,,}
+    [ ! -f "$path" ] && die "$name not found at $path"
+    [ ! -x "$path" ] && die "$name is not executable"
+}
+check_executable CERTIFAIGER
+check_executable SAT
+check_executable AIGTOCNF
+[ "$#" -lt 2 ] && die "Usage: $0 <model> <witness>"
+
+mkdir -p "$TMP"
+TMP="$TMP/$$_"
+echo "Writing temporary files to $TMP"
+trap 'rm -f "${TMP}"*' EXIT HUP INT QUIT TERM
+
+CHECKS=(reset transition property base step)
+AIGS=()
+for check in "${CHECKS[@]}"; do
+    AIGS+=("${TMP}$check.aig")
+done
+qbf=false
+$CERTIFAIGER "$1" "$2" "${AIGS[@]}"
+certifaiger_exit=$?
+if [ $certifaiger_exit -ne 0 ]; then
+    if [ $certifaiger_exit -eq 15 ]; then
+        qbf=true
+    else
+        die "Error: certifaiger failed with exit code $certifaiger_exit"
+    fi
+fi
+echo
+
+ALL_SUCCESS=true
+if [ $qbf = true ]; then
+    check_executable QAIGER2QCIR
+    check_executable QUABS
+    echo Checking reset with quantification
+    check="${CHECKS[0]}"
+    $QAIGER2QCIR "${TMP}$check.aig" >"${TMP}$check.qcir"
+    $QUABS "${TMP}$check.qcir"
+    if [ $? -ne 20 ]; then
+        ALL_SUCCESS=false
+        echo "Error: ${check} check failed"
+    fi
+    echo
+    CHECKS=("${CHECKS[@]:1}")
+fi
+for check in "${CHECKS[@]}"; do
+    echo Checking "$check"
+    $AIGTOCNF "${TMP}$check.aig" "${TMP}$check.cnf"
+    $SAT --quiet "${TMP}$check.cnf"
+    if [ $? -ne 20 ]; then
+        ALL_SUCCESS=false
+        echo "Error: ${check} check failed"
+    fi
+    echo
+done
+if $ALL_SUCCESS; then
+    echo "Success: Certificate check passed."
+    exit 0
+else
+    echo "Error: Certificate check failed."
+    exit 1
+fi

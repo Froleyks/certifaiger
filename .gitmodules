@@ -1,0 +1,10 @@
+[submodule "kissat"]
+	path = kissat
+	url = https://github.com/arminbiere/kissat
+[submodule "aiger"]
+	path = aiger
+	url = https://github.com/arminbiere/aiger
+[submodule "quabs"]
+	path = quabs
+	url = https://github.com/ltentrup/quabs.git
+	ignore = dirty
