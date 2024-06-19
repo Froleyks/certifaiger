@@ -99,12 +99,12 @@ endif()
 # Targets:
 # # Format:
 add_custom_target(
-  format_${CMAKE_PROJECT_NAME}
+  format_${PROJECT_NAME}
   COMMAND clang-format -i ${sources} ${headers} || echo "clang-format not installed"
   COMMAND cmake-format -i ${CMAKE_CURRENT_LIST_FILE} || echo "cmake-format not installed"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   COMMENT "Formatting files")
-set_target_properties(format_${CMAKE_PROJECT_NAME} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+set_target_properties(format_${PROJECT_NAME} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
 # # Certifaiger:
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION)
