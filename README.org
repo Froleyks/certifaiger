@@ -4,13 +4,10 @@
 ** Quickstart
 
 #+begin_src bash
-cd certifaiger
-./build_dependencies.sh
-# If resets are not stratified
-# ./build_dependencies.sh qbf
-
-# Generates the checks, translates them to CNF, and runs kissat
-./check_certificate.sh <model.aig> <witness.aig>
+git clone https://github.com/Froleyks/certifaiger
+cd certifaiger && make
+# if resets are not stratified: make qbf
+./build/check_certificate.sh examples/01_model.aag examples/06_witness.aag
 #+end_src
 
 Checkout the step-by-step [[https://github.com/Froleyks/certifaiger/blob/main/examples][example]].
