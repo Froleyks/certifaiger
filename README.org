@@ -1,4 +1,5 @@
 * Certifaiger
+#+html: <img src="logo.png" width="300px" align="right"/>
 [[https://github.com/Froleyks/certifaiger][Certifaiger]] checks the correctness of witnesses circuits in the [[https://github.com/arminbiere/aiger][AIGER]] format.
 
 ** Quickstart
