@@ -150,6 +150,13 @@ struct InAIG {
                 << path << "\n";
       exit(2);
     }
+    if (aig->num_constraints + aig->num_justice + aig->num_fairness)
+      std::cerr << "certifaiger: WARNING constraints, justice and fairness are "
+                   "not supported: "
+                << path << "\n";
+    if (aig->num_bad + aig->num_outputs > 1)
+      std::cerr << "certifaiger: WARNING Multiple properties. Using "
+                << (aig->num_bad ? "bad" : "output") << "0: " << path << "\n";
   }
   ~InAIG() { aiger_reset(aig); }
   aiger *operator*() const { return aig; }
