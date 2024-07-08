@@ -1,6 +1,6 @@
 * Certifaiger
 #+html: <img src="logo.png" width="300px" align="right"/>
-[[https://github.com/Froleyks/certifaiger][Certifaiger]] checks the correctness of witnesses circuits in the [[https://github.com/arminbiere/aiger][AIGER]] format.
+[[https://github.com/Froleyks/certifaiger][Certifaiger]] checks the correctness of witnesses circuits in [[https://github.com/arminbiere/aiger][AIGER]].
 
 ** Quickstart
 
@@ -12,6 +12,7 @@ cd certifaiger && make
 #+end_src
 
 Checkout the step-by-step [[https://github.com/Froleyks/certifaiger/blob/main/examples][example]].
+
 The [[https://github.com/Froleyks/certifaiger/blob/main/scripts/README.org][scripts]] directory provides examples of further use.
 ** Motivation
 Model checking is an essential technique for hardware design.
