@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+while true; do
+    s=(0 0 0 0 0)
+    logs=$(find "${TMPDIR:-/tmp}"/froleyks-certifaiger/fuzz-* -name log 2>/dev/null)
+    for l in $logs; do
+        fuzzed=($(grep '^fuzzed:' "$l" | tail -n 1))
+        for i in {0..4}; do
+            s[$i]=$((s[$i] + fuzzed[$((i + 1))]))
+        done
+    done
+    percent() {
+        [ $2 -gt 0 ] && echo $(($1 * 100 / $2)) || echo 0
+    }
+    echo -ne " Count: ${s[0]}\t Safe: $(percent ${s[1]} ${s[0]})%\t Unsafe: $(percent ${s[2]} ${s[0]})%\t Timeout: ${s[3]}\t Failed: ${s[4]}\r"
+done

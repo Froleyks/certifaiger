@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+build="$(cd "$(dirname "${BASH_SOURCE[0]}")/../build" && pwd)"
+BUGS="$build/bug"
+fuzz="$build/fuzz"
+status="$build/status"
+for i in fuzz status; do
+  [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+done
+"$fuzz" >/dev/null || exit 1
+[ $# -lt 1 ] && echo "usage: $(basename $0) <model checker> [<cores>=8]" && exit 0
+cleanup() {
+  echo
+  jobs -rp | xargs -r kill
+  wait
+  if ls "$BUGS"/aag-*.aag >/dev/null 2>&1; then
+    echo -e "\n$(basename $0): $(basename $MC) on shortes bug"
+    short=$(wc -l "$BUGS"/aag-*.aag | sort -n | head -n 1 | awk '{print $2}')
+    cp "$short" "$build"/bug.aag
+    "$MC" "$build"/bug.aag "$build"/wit.aag
+    echo
+    echo $(basename $0): "Found a bug of length" $(wc -l "$build"/bug.aag | awk '{print $1}'): $(head -n 1 "$build"/bug.aag)
+    echo $(basename $0): "with witness of length" $(wc -l "$build"/wit.aag | awk '{print $1}')
+    echo $(basename $0): "$build"/bug.aag
+    echo $(basename $0): "$build"/wit.aag
+  fi
+  trap '' EXIT HUP INT QUIT TERM
+  exit
+}
+trap 'cleanup' EXIT HUP INT QUIT TERM
+MC=$(realpath $1)
+n=${2:-8}
+echo $(basename $0): fuzzing $(basename "$MC") with $n thredas
+old_bugs=$(ls "$BUGS"/aag-*.aag 2>/dev/null | wc -l)
+if [ $old_bugs -gt 0 ]; then
+  echo $(basename $0): "Warning: $old_bugs failure inducing inputs from previous runs found"
+  echo $(basename $0): "run rm -r $BUGS"
+fi
+echo
+"$MC" --range >options
+sed -i \
+  -e '/verbosity/d' \
+  -e '/certificate/d' \
+  options
+i=0
+while [ $i -lt "$n" ]; do
+  "$fuzz" "$MC" --time=60 &
+  fuzzer[${i}]=$!
+  ((i += 1))
+done
+"$status" &
+wait "${fuzzer[@]}"

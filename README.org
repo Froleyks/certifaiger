@@ -8,10 +8,11 @@
 git clone https://github.com/Froleyks/certifaiger
 cd certifaiger && make
 # if resets are not stratified: make qbf
-./build/check_certificate.sh examples/01_model.aag examples/06_witness.aag
+./build/check examples/01_model.aag examples/06_witness.aag
 #+end_src
 
 Checkout the step-by-step [[https://github.com/Froleyks/certifaiger/blob/main/examples][example]].
+The [[https://github.com/Froleyks/certifaiger/blob/main/scripts/README.org][scripts]] directory provides examples of further use.
 ** Motivation
 Model checking is an essential technique for hardware design.
 For unsafe circuits, those that violate the property being checked, it is usually easy to produce a trace to demonstrate the flaw.

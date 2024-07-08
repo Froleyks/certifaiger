@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+FAILURES=1 # number of failures before exit
+build="$(cd "$(dirname "${BASH_SOURCE[0]}")/../build" && pwd)"
+BUGS="$build/bug"
+test="$build/test"
+for i in test; do
+    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+done
+"$test" >/dev/null || exit 1
+[ $# -lt 1 ] && echo "usage: $(basename $0) <model checker>" && exit 0
+MC=$(realpath $1)
+mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
+TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename $0)-XXXXXXXX)
+trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
+
+log="$TMP/log"
+out="$TMP/out"
+# echo $(basename $0) logging to "$log"
+i=0
+safe=0
+unsafe=0
+timeout=0
+failed=0
+while true; do
+    "$test" "$MC" >"$out"
+    res=$?
+    if [ $res -eq 0 ]; then
+        if grep -q 'certified: produced valid witness circuit' "$out"; then
+            ((safe += 1))
+        elif grep -q 'certified: produced valid trace' "$out"; then
+            ((unsafe += 1))
+        elif grep -q 'certified: model checker timeout' "$out"; then
+            ((timeout += 1))
+        else
+            echo "$(basename $0): ERROR in certified"
+            exit 1
+        fi
+        (((i += 1) % 10)) || echo fuzzed: $i $safe $unsafe $timeout $failed >>"$log"
+        continue
+    fi
+    cat "$out"
+    (((failed += 1) >= $FAILURES)) && exit 0
+done

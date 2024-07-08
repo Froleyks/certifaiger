@@ -7,7 +7,7 @@ file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
 # Options:
 option(LTO "Enable Link-Time Optimization" ON)
 option(GIT "Automatically download dependencies" ON)
-option(CHECK "Setup check_certificate.sh" ON)
+option(CHECK "Setup checking and fuzzing" ON)
 option(SAT "Build SAT solver (kissat)" ON)
 option(QBF "Build QBF solver (non-stratified only)" OFF)
 
@@ -25,11 +25,11 @@ endif(LTO)
 
 # Dependencies:
 include(ExternalProject)
-function(git_submodule ${module})
+function(git_submodule)
   if(GIT)
     find_package(Git QUIET)
     execute_process(
-      COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive ${module}
+      COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive ${ARGV0}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} RESULT_VARIABLE GIT_RES)
     if(NOT GIT_RES EQUAL "0")
       message(
@@ -40,7 +40,24 @@ function(git_submodule ${module})
   endif()
 endfunction()
 
-# # aiger:
+function(add_script)
+  message(STATUS ${ARGV0})
+  set(SCRIPT_DIR ${CMAKE_CURRENT_LIST_DIR}/scripts)
+  configure_file(
+    ${SCRIPT_DIR}/${ARGV0}
+    ${CMAKE_CURRENT_BINARY_DIR}/${ARGV1}
+    COPYONLY
+    FILE_PERMISSIONS
+    OWNER_READ
+    OWNER_WRITE
+    OWNER_EXECUTE
+    GROUP_READ
+    GROUP_WRITE
+    GROUP_EXECUTE
+    WORLD_READ
+    WORLD_EXECUTE)
+endfunction()
+
 if(NOT TARGET aiger)
   git_submodule(aiger)
   find_file(AIGER_SRC NAMES aiger.c PATHS ${AIGER_DIR})
@@ -51,22 +68,24 @@ if(NOT TARGET aiger)
   target_include_directories(aiger PUBLIC ${AIGER_DIR}/)
 endif()
 
-# # aigtocnf:
 if(CHECK)
   git_submodule(aiger)
   ExternalProject_Add(
-    aigtocnf
+    aigtools
     PREFIX aiger
     SOURCE_DIR ${AIGER_DIR}
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND ./configure.sh
-    BUILD_COMMAND make -j aigtocnf
-    INSTALL_COMMAND cp aigtocnf <INSTALL_DIR>)
-  configure_file(${CMAKE_CURRENT_LIST_DIR}/check_certificate.in
-                 ${CMAKE_CURRENT_BINARY_DIR}/check_certificate.sh COPYONLY)
+    BUILD_COMMAND make -j aigtocnf aigsim aigfuzz aigdd aigtoaig
+    INSTALL_COMMAND cp aigtocnf aigsim aigfuzz aigdd aigtoaig <INSTALL_DIR>)
+  add_script(check.in check)
+  add_script(certified.in certified)
+  add_script(test.in test)
+  add_script(fuzz.in fuzz)
+  add_script(status.in status)
+  add_script(certifuzzer.in certifuzzer)
 endif()
 
-# #kissat:
 if(SAT)
   git_submodule(kissat)
   ExternalProject_Add(
@@ -79,7 +98,6 @@ if(SAT)
     INSTALL_COMMAND cp build/kissat <INSTALL_DIR>)
 endif()
 
-# #quabs:
 if(QBF)
   git_submodule(quabs)
   # The CMS version they use has a deprecated python interface dependency
