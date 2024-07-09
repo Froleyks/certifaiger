@@ -11,9 +11,10 @@ option(CHECK "Setup checking and fuzzing" ON)
 option(SAT "Build SAT solver (kissat)" ON)
 option(QBF "Build QBF solver (non-stratified only)" OFF)
 
-set(AIGER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/aiger CACHE PATH "aiger directory")
-set(KISSAT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/kissat CACHE PATH "kissat directory")
-set(QUABS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/quabs CACHE PATH "quabs directory")
+set(AIGER_DIR ${CMAKE_CURRENT_LIST_DIR}/dependencies/aiger CACHE PATH "aiger directory")
+set(KISSAT_DIR ${CMAKE_CURRENT_LIST_DIR}/dependencies/kissat CACHE PATH
+                                                                   "kissat directory")
+set(QUABS_DIR ${CMAKE_CURRENT_LIST_DIR}/dependencies/quabs CACHE PATH "quabs directory")
 
 # Compile flags:
 set(CMAKE_CXX_STANDARD 20)
@@ -30,7 +31,7 @@ function(git_submodule)
     find_package(Git QUIET)
     execute_process(
       COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive ${ARGV0}
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} RESULT_VARIABLE GIT_RES)
+      WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/dependencies RESULT_VARIABLE GIT_RES)
     if(NOT GIT_RES EQUAL "0")
       message(
         FATAL_ERROR
@@ -77,7 +78,7 @@ if(CHECK)
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND ./configure.sh
     BUILD_COMMAND make -j aigtocnf aigsim aigfuzz aigdd aigtoaig
-    INSTALL_COMMAND cp aigtocnf aigsim aigfuzz aigdd aigtoaig <INSTALL_DIR>)
+    INSTALL_COMMAND cp aigtocnf aigsim aigfuzz aigdd aigtoaig <INSTALL_DIR> && make clean)
   add_script(check.in check)
   add_script(certified.in certified)
   add_script(test.in test)
@@ -95,7 +96,7 @@ if(SAT)
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND ./configure
     BUILD_COMMAND make -j
-    INSTALL_COMMAND cp build/kissat <INSTALL_DIR>)
+    INSTALL_COMMAND cp build/kissat <INSTALL_DIR> && make clean)
 endif()
 
 if(QBF)
@@ -125,7 +126,7 @@ add_custom_target(
 set_target_properties(format_${PROJECT_NAME} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
 # # Certifaiger:
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION)
+file(READ "${CMAKE_CURRENT_LIST_DIR}/VERSION" VERSION)
 string(STRIP ${VERSION} VERSION)
 execute_process(COMMAND bash "-c" "git show|head -1|awk '{print $2}'"
                 OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE GIT_ID)
