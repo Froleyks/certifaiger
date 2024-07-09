@@ -105,7 +105,7 @@ if(QBF)
   set(patch_command
       bash -c
       # The patch command will return 1 if the patch is already applied
-      "(patch --forward libsolve/src/CMakeLists.txt ${CMAKE_CURRENT_LIST_DIR}/quabs.patch || [ $? -eq 1 ] && exit 0)"
+      "(patch --forward libsolve/src/CMakeLists.txt ${CMAKE_CURRENT_LIST_DIR}/dependencies/quabs.patch || [ $? -eq 1 ] && exit 0)"
   )
   ExternalProject_Add(
     quabs

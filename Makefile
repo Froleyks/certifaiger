@@ -6,7 +6,7 @@ build/Makefile: CMakeLists.txt
 add_qbf_dependency:
 	cmake -DQBF=ON -DCMAKE_BUILD_TYPE=Release -B build
 docker: clean
-	git submodule update --init
+	git submodule update --init --recursive
 	docker build -t certifaiger .
 	docker run certifaiger examples/01_model.aag examples/06_witness.aag
 clean:
