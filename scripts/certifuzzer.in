@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-build="$(cd "$(dirname "${BASH_SOURCE[0]}")/../build" && pwd)"
+build=$(dirname "${BASH_SOURCE[0]}")
 BUGS="$build/bug"
 fuzz="$build/fuzz"
 status="$build/status"
