@@ -3,7 +3,7 @@ build=$(dirname "${BASH_SOURCE[0]}")
 check="$build/check"
 aigsim="$build/aiger/aigsim"
 for i in check aigsim; do
-    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
 done
 "$check" >/dev/null || exit 1
 [ $# -lt 2 ] && echo "usage: $(basename $0) <model checker> <model> [--mc_time=<limit>] [<model checker args>]" && exit 0
@@ -27,7 +27,10 @@ case $res in
         echo $(basename $0): model checker timeout
         exit 0
         ;;
-    0) exit 1 ;;
+    0)
+        echo $(basename $0): Error: model checker exit code needs to signal SAFE/UNSAFE
+        exit 1
+        ;;
     10)
         "$aigsim" -w -m "$MODEL" "$WIT" | grep -q 'Trace is a witness for: { b0 }' &&
             echo $(basename $0): produced valid trace

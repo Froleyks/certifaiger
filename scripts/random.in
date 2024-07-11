@@ -7,7 +7,7 @@ aigfuzz="$build/aiger/aigfuzz"
 aigdd="$build/aiger/aigdd"
 aigtoaig="$build/aiger/aigtoaig"
 for i in certified aigfuzz aigdd aigtoaig; do
-    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
 done
 "$certified" >/dev/null || exit 1
 [ $# -lt 1 ] && echo "usage: $(basename $0) <model checker> [<seed>]" && exit 0

@@ -2,9 +2,10 @@
 build=$(dirname "${BASH_SOURCE[0]}")
 BUGS="$build/bug"
 fuzz="$build/fuzz"
+certified="$build/certified"
 status="$build/status"
-for i in fuzz status; do
-  [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+for i in fuzz certified status; do
+  [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
 done
 "$fuzz" >/dev/null || exit 1
 [ $# -lt 1 ] && echo "usage: $(basename $0) <model checker> [<cores>=8]" && exit 0
@@ -13,10 +14,11 @@ cleanup() {
   jobs -rp | xargs -r kill
   wait
   if ls "$BUGS"/aag-*.aag >/dev/null 2>&1; then
-    echo -e "\n$(basename $0): $(basename $MC) on shortes bug"
+    echo -e "\n$(basename $0): $(basename $MC) on shortes bug\n"
     short=$(wc -l "$BUGS"/aag-*.aag | sort -n | head -n 1 | awk '{print $2}')
     cp "$short" "$build"/bug.aag
     "$MC" "$build"/bug.aag "$build"/wit.aag
+    "$certified" "$MC" "$build"/bug.aag
     echo
     echo $(basename $0): "Found a bug of length" $(wc -l "$build"/bug.aag | awk '{print $1}'): $(head -n 1 "$build"/bug.aag)
     echo $(basename $0): "with witness of length" $(wc -l "$build"/wit.aag | awk '{print $1}')

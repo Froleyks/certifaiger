@@ -7,7 +7,7 @@ aigtocnf="$build/aiger/aigtocnf"
 qaiger2qcir="$build/quabs/qaiger2qcir"
 quabs="$build/quabs/quabs"
 for i in certifaiger sat_solver aigtocnf; do
-    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
 done
 [ $# -lt 2 ] && echo "usage: $(basename $0) <model> <witness>" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
@@ -34,7 +34,7 @@ echo
 ALL_SUCCESS=true
 if [ $qbf = true ]; then
     for i in qaiger2qcir quabs; do
-        [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+        [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
     done
     echo Checking reset with quantification
     check="${CHECKS[0]}"

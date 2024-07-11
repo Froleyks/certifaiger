@@ -6,10 +6,10 @@ The scripts (in increasing order of specificity to my workflow):
   Calls certifaiger to generate the SAT formulas and asserts unsatisfiabilty using kissat.
 - certified <model checker> <model> [--mc_time=<limit>] [<model checker args>]
   Runs the model checker and checks the resulting witness with check or aigsim.
-- test <model checker> [<seed>]
+- random <model checker> [<seed>]
   Generates a random model using aidfuzz and runs certified model checker
 - fuzz <model checker>
-  Repeatedly runs test and keeps track of some statistics.
+  Repeatedly runs random and keeps track of some statistics.
 - status
   Parses fuzz logfiles and prints the statistics
 - certifuzzer <model checker> [<cores>=8]

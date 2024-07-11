@@ -2,11 +2,11 @@
 FAILURES=1 # number of failures before exit
 build=$(dirname "${BASH_SOURCE[0]}")
 BUGS="$build/bug"
-test="$build/test"
-for i in test; do
-    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" && exit 1
+random="$build/random"
+for i in random; do
+    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
 done
-"$test" >/dev/null || exit 1
+"$random" >/dev/null || exit 1
 [ $# -lt 1 ] && echo "usage: $(basename $0) <model checker>" && exit 0
 MC=$(realpath $1)
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
@@ -22,7 +22,7 @@ unsafe=0
 timeout=0
 failed=0
 while true; do
-    "$test" "$MC" >"$out"
+    "$random" "$MC" >"$out"
     res=$?
     if [ $res -eq 0 ]; then
         if grep -q 'certified: produced valid witness circuit' "$out"; then
