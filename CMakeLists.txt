@@ -80,6 +80,7 @@ if(CHECK)
     BUILD_COMMAND make -j aigtocnf aigsim aigfuzz aigdd aigtoaig
     INSTALL_COMMAND cp aigtocnf aigsim aigfuzz aigdd aigtoaig <INSTALL_DIR> && make clean)
   add_script(check.in check)
+  add_script(simulate.in simulate)
   add_script(certified.in certified)
   add_script(random.in random)
   add_script(fuzz.in fuzz)

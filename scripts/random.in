@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-FUZZER_OPTIONS='-1 -m -s'
+FUZZER_OPTIONS='-2 -m -S -s'
 build=$(dirname "${BASH_SOURCE[0]}")
 BUGS="$build/bug"
 certified="$build/certified"

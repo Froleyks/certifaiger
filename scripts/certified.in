@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 build=$(dirname "${BASH_SOURCE[0]}")
 check="$build/check"
-aigsim="$build/aiger/aigsim"
-for i in check aigsim; do
+simulate="$build/simulate"
+for i in check simulate; do
     [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
 done
 "$check" >/dev/null || exit 1
+"$simulate" >/dev/null || exit 1
 [ $# -lt 2 ] && echo "usage: $(basename $0) <model checker> <model> [--mc_time=<limit>] [<model checker args>]" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename $0)-XXXXXXXX)
@@ -14,6 +15,7 @@ MC=$(realpath $1)
 MODEL=$(realpath $2)
 echo $(basename $0): running "$MC" on "$MODEL"
 WIT=$TMP/wit_$(basename $MODEL)
+SIM=$TMP/sim_$(basename $MODEL)
 shift 2
 if [[ $1 =~ --mc_time=([0-9]+) ]]; then
     limit="timeout ${BASH_REMATCH[1]} "
@@ -22,6 +24,7 @@ fi
 
 $limit "$MC" "$MODEL" "$WIT" "$@"
 res=$?
+echo $(basename $0): model checker exit code $res
 case $res in
     124)
         echo $(basename $0): model checker timeout
@@ -32,14 +35,14 @@ case $res in
         exit 1
         ;;
     10)
-        "$aigsim" -w -m "$MODEL" "$WIT" | grep -q 'Trace is a witness for: { b0 }' &&
-            echo $(basename $0): produced valid trace
+        "$simulate" "$MODEL" "$WIT"
         res=$?
+        [ $res -eq 0 ] && echo $(basename $0): produced valid trace
         ;;
     20)
-        "$check" "$MODEL" "$WIT" &&
-            echo $(basename $0): produced valid witness circuit
+        "$check" "$MODEL" "$WIT"
         res=$?
+        [ $res -eq 0 ] && echo $(basename $0): produced valid witness circuit
         ;;
 esac
 exit $res

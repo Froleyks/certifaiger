@@ -50,15 +50,6 @@ unsigned next(const aiger *aig, unsigned l) {
   assert(is_latch(aig, l));
   return aiger_is_latch(const_cast<aiger *>(aig), l)->next;
 }
-unsigned output(const aiger *aig) {
-  if (aig->num_bad)
-    return aig->bad[0].lit;
-  else if (aig->num_outputs)
-    return aig->outputs[0].lit;
-  else
-    return aiger_false;
-}
-
 unsigned size(const aiger *aig) { return (aig->maxvar + 1) * 2; }
 
 unsigned input(aiger *aig) {
@@ -98,6 +89,10 @@ unsigned conj(aiger *aig, std::vector<unsigned> &v) {
   v.clear();
   return res;
 }
+unsigned conj(aiger *aig, auto range) {
+  std::vector<unsigned> v(range.begin(), range.end());
+  return conj(aig, v);
+}
 
 std::span<aiger_symbol> inputs(const aiger *aig) {
   return {aig->inputs, aig->num_inputs};
@@ -107,6 +102,17 @@ std::span<aiger_symbol> latches(const aiger *aig) {
 }
 std::span<aiger_and> ands(const aiger *aig) {
   return {aig->ands, aig->num_ands};
+}
+std::span<aiger_symbol> constraints(const aiger *aig) {
+  return {aig->constraints, aig->num_constraints};
+}
+unsigned output(const aiger *aig) {
+  if (aig->num_bad)
+    return aig->bad[0].lit;
+  else if (aig->num_outputs)
+    return aig->outputs[0].lit;
+  else
+    return aiger_false;
 }
 
 auto lits = std::views::transform([](const auto &l) { return l.lit; });
@@ -146,17 +152,17 @@ struct InAIG {
     }
     if (!inputs_latches_reencoded(aig)) {
       std::cerr << "certifaiger: inputs and latches have to be reencoded even "
-                   "in ASCII format: "
+                   "in ASCII format "
                 << path << "\n";
       exit(2);
     }
-    if (aig->num_constraints + aig->num_justice + aig->num_fairness)
-      std::cerr << "certifaiger: WARNING constraints, justice and fairness are "
-                   "not supported: "
-                << path << "\n";
+    if (aig->num_justice + aig->num_fairness)
+      std::cout
+          << "certifaiger: WARNING justice and fairness are not supported "
+          << path << "\n";
     if (aig->num_bad + aig->num_outputs > 1)
-      std::cerr << "certifaiger: WARNING Multiple properties. Using "
-                << (aig->num_bad ? "bad" : "output") << "0: " << path << "\n";
+      std::cout << "certifaiger: WARNING Multiple properties. Using "
+                << (aig->num_bad ? "bad" : "output") << "0 of " << path << "\n";
   }
   ~InAIG() { aiger_reset(aig); }
   aiger *operator*() const { return aig; }

@@ -19,7 +19,8 @@
 
 auto param(int argc, char *argv[]) {
   std::vector<const char *> checks{
-      "reset.aag", "transition.aag", "property.aag", "base.aag", "step.aag",
+      "reset.aag",    "constraint.aag", "transition.aag",
+      "property.aag", "base.aag",       "step.aag",
   };
   if (argc > 1 && !strcmp(argv[1], "--version")) {
     std::cout << VERSION << '\n';
@@ -54,6 +55,9 @@ bool mapped(const std::vector<unsigned> &m, unsigned l) {
 }
 auto unmapped(const std::vector<unsigned> &m) {
   return std::views::filter([&m](const auto &l) { return !mapped(m, l.lit); });
+}
+auto map_at(const std::vector<unsigned> &m) {
+  return std::views::transform([&m](const auto &l) { return m.at(l); });
 }
 // Both are mapped to inputs in the *to* circuit.
 void map_inputs_and_latches(aiger *to, std::vector<unsigned> &m,
@@ -213,6 +217,19 @@ void check_reset(aiger *check, const aiger *model, const aiger *witness,
   aiger_add_output(check, bad, "R(M) ^ -R'(M)");
 }
 
+void check_constraint(
+    aiger *check, const aiger *model, const aiger *witness,
+    const std::vector<std::pair<unsigned, unsigned>> &shared) {
+  // E(I,L) => E'(I',L')
+  auto [model_m, witness_m] =
+      map_concatenated_circuits(check, model, witness, shared);
+  unsigned model_E = conj(check, constraints(model) | lits | map_at(model_m));
+  unsigned witness_E =
+      conj(check, constraints(witness) | lits | map_at(witness_m));
+  unsigned bad = conj(check, aiger_not(model_E), witness_E);
+  aiger_add_output(check, bad, "-E(I,L) ^ E'(I',L')");
+}
+
 void check_transition(
     aiger *check, const aiger *model, const aiger *witness,
     const std::vector<std::pair<unsigned, unsigned>> &shared) {
@@ -251,7 +268,7 @@ void check_property(aiger *check, const aiger *model, const aiger *witness,
 }
 
 void check_base(aiger *check, const aiger *witness) {
-  // R'(L') => P'(I',L')
+  // R'(L') ^ E' => P'(I',L')
   std::vector<unsigned> m{empty_map(witness)};
   map_inputs_and_latches(check, m, witness);
   map_ands(check, m, witness);
@@ -260,22 +277,29 @@ void check_base(aiger *check, const aiger *witness) {
   for (auto [l, r] : latches(witness) | resets)
     latch_is_reset.push_back(eq(check, m.at(l), m.at(r)));
   unsigned aig_is_reset = conj(check, latch_is_reset);
-  unsigned bad = conj(check, aig_is_reset, m.at(output(witness)));
-  aiger_add_output(check, bad, "R'(L') ^ -P'(I',L')");
+  unsigned constraint = conj(check, constraints(witness) | lits | map_at(m));
+  unsigned premise = conj(check, aig_is_reset, constraint);
+  unsigned bad = conj(check, premise, m.at(output(witness)));
+  aiger_add_output(check, bad, "R'(L') ^ E' ^ -P'(I',L')");
 }
 
 void check_step(aiger *check, const aiger *witness) {
-  // (P'(L') ^ F'(L', Ln')) => P'(Ln')
+  // (P'(L') ^ E ^ F'(L', Ln') ^ En) => P'(Ln')
   auto [current, next] = map_concatenated_circuits(check, witness, witness);
   std::vector<unsigned> latch_is_next;
   latch_is_next.reserve(witness->num_latches);
   for (auto [l, n] : latches(witness) | nexts)
     latch_is_next.push_back(eq(check, current.at(n), next.at(l)));
   unsigned aig_is_next = conj(check, latch_is_next);
-  unsigned premise =
+  unsigned current_E =
+      conj(check, constraints(witness) | lits | map_at(current));
+  unsigned next_E = conj(check, constraints(witness) | lits | map_at(next));
+  unsigned constraint = conj(check, current_E, next_E);
+  unsigned unconstrained_premise =
       conj(check, aiger_not(current.at(output(witness))), aig_is_next);
+  unsigned premise = conj(check, constraint, unconstrained_premise);
   unsigned bad = conj(check, premise, next.at(output(witness)));
-  aiger_add_output(check, bad, "P'(L') ^ F'(L', Ln') ^ -P'(Ln')");
+  aiger_add_output(check, bad, "P'(L') ^ E ^ F'(L', Ln') ^ En ^ -P'(Ln')");
 }
 
 int main(int argc, char *argv[]) {
@@ -292,9 +316,10 @@ int main(int argc, char *argv[]) {
     check_reset(*OutAIG(checks[0]), *model, *witness, shared);
   else
     check_reset_exists(*OutAIG(checks[0]), *model, *witness, shared);
-  check_transition(*OutAIG(checks[1]), *model, *witness, shared);
-  check_property(*OutAIG(checks[2]), *model, *witness, shared);
-  check_base(*OutAIG(checks[3]), *witness);
-  check_step(*OutAIG(checks[4]), *witness);
+  check_constraint(*OutAIG(checks[1]), *model, *witness, shared);
+  check_transition(*OutAIG(checks[2]), *model, *witness, shared);
+  check_property(*OutAIG(checks[3]), *model, *witness, shared);
+  check_base(*OutAIG(checks[4]), *witness);
+  check_step(*OutAIG(checks[5]), *witness);
   if (!circuits_stratified) return 15;
 }
