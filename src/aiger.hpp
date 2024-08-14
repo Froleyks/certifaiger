@@ -89,6 +89,10 @@ unsigned conj(aiger *aig, std::vector<unsigned> &v) {
   v.clear();
   return res;
 }
+unsigned conj(aiger *aig, std::vector<unsigned> &&v) {
+  std::vector<unsigned> tmp(v.begin(), v.end());
+  return conj(aig, tmp);
+}
 unsigned conj(aiger *aig, auto range) {
   std::vector<unsigned> v(range.begin(), range.end());
   return conj(aig, v);

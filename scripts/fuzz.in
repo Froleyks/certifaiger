@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 FAILURES=1 # number of failures before exit
-build=$(dirname "${BASH_SOURCE[0]}")
+build=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BUGS="$build/bug"
 random="$build/random"
 for i in random; do
-    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
+    [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 "$random" >/dev/null || exit 1
-[ $# -lt 1 ] && echo "usage: $(basename $0) <model checker>" && exit 0
+[ $# -lt 1 ] && echo "usage: $(basename "$0") <model checker>" && exit 0
 MC=$(realpath $1)
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
-TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename $0)-XXXXXXXX)
+TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
 
 log="$TMP/log"
 out="$TMP/out"
-# echo $(basename $0) logging to "$log"
+# echo $(basename "$0") logging to "$log"
 i=0
 safe=0
 unsafe=0
@@ -32,7 +32,7 @@ while true; do
         elif grep -q 'certified: model checker timeout' "$out"; then
             ((timeout += 1))
         else
-            echo "$(basename $0): ERROR in certified"
+            echo "$(basename "$0"): ERROR in certified"
             exit 1
         fi
         (((i += 1) % 10)) || echo fuzzed: $i $safe $unsafe $timeout $failed >>"$log"

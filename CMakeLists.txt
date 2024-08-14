@@ -23,11 +23,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if(LTO)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif(LTO)
+set(CMAKE_CXX_FLAGS_FUZZING "-O3" CACHE STRING "Flags for fuzzing build type" FORCE)
 
 # Dependencies:
 include(ExternalProject)
 function(git_submodule)
-  if(GIT)
+  if(GIT AND NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/dependencies/${ARGV0})
     find_package(Git QUIET)
     execute_process(
       COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive ${ARGV0}

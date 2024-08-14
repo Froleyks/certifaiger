@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-build=$(dirname "${BASH_SOURCE[0]}")
+build=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 certifaiger="$build/certifaiger"
 sat_solver="$build/kissat/kissat"
 aigtocnf="$build/aiger/aigtocnf"
@@ -7,38 +7,35 @@ aigtocnf="$build/aiger/aigtocnf"
 qaiger2qcir="$build/quabs/qaiger2qcir"
 quabs="$build/quabs/quabs"
 for i in certifaiger sat_solver aigtocnf; do
-    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
+    [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
-[ $# -lt 2 ] && echo "usage: $(basename $0) <model> <witness>" && exit 0
+[ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <witness>" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
-TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename $0)-XXXXXXXX)
+TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
 CHECKS=(reset constraint transition property base step)
 AIGS=()
 for check in "${CHECKS[@]}"; do
     AIGS+=("${TMP}/$check.aig")
 done
-qbf=false
-echo $(basename $0): Checking witness circuit "$2"
+non_stratified=false
+echo $(basename "$0"): Checking witness circuit "$2"
 $certifaiger "$1" "$2" "${AIGS[@]}"
 certifaiger_exit=$?
-if [ $certifaiger_exit -ne 0 ]; then
-    if [ $certifaiger_exit -eq 15 ]; then
-        qbf=true
-    else
-        echo "$(basename $0): Error: certifaiger failed with exit code $certifaiger_exit"
-        exit 1
-    fi
-fi
+case $certifaiger_exit in
+0) ;;
+15)
+    non_stratified=true
+    CHECKS=(constraint transition property base step)
+    ;;
+*) echo "Error: certifaiger failed with exit code $certifaiger_exit" ;;
+esac
 echo
 
 ALL_SUCCESS=true
-if [ $qbf = true ]; then
-    for i in qaiger2qcir quabs; do
-        [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
-    done
-    echo Checking reset with quantification
-    check="${CHECKS[0]}"
+if [ $non_stratified = true ]; then
+    check="reset"
+    echo Checking ${check} with quantification
     $qaiger2qcir "${TMP}/$check.aig" >"${TMP}/$check.qcir"
     $quabs "${TMP}/$check.qcir"
     if [ $? -ne 20 ]; then
@@ -46,7 +43,6 @@ if [ $qbf = true ]; then
         echo "Error: ${check} check failed"
     fi
     echo
-    CHECKS=("${CHECKS[@]:1}")
 fi
 for check in "${CHECKS[@]}"; do
     echo Checking "$check"

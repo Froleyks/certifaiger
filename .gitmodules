@@ -1,6 +1,6 @@
 [submodule "aiger"]
 	path = dependencies/aiger
-	url = https://github.com/arminbiere/aiger
+	url = https://github.com/Froleyks/aiger.git
 [submodule "kissat"]
 	path = dependencies/kissat
 	url = https://github.com/arminbiere/kissat

@@ -1,30 +1,32 @@
 #!/usr/bin/env bash
 FUZZER_OPTIONS='-2 -m -S -s'
-build=$(dirname "${BASH_SOURCE[0]}")
+# FUZZER_OPTIONS='-2 -m -S'
+build=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BUGS="$build/bug"
 certified="$build/certified"
 aigfuzz="$build/aiger/aigfuzz"
 aigdd="$build/aiger/aigdd"
 aigtoaig="$build/aiger/aigtoaig"
+options="$build/options"
 for i in certified aigfuzz aigdd aigtoaig; do
-    [ ! -x "${!i}" ] && echo "$(basename $0): missing executable $i (${!i})" >&2 && exit 1
+    [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 "$certified" >/dev/null || exit 1
-[ $# -lt 1 ] && echo "usage: $(basename $0) <model checker> [<seed>]" && exit 0
+[ $# -lt 1 ] && echo "usage: $(basename "$0") <model checker> [<seed>]" && exit 0
 MC=$(realpath $1)
 [ $# -gt 1 ] && seed=$2
-[ -f "$build/option" ] && FUZZER_OPTIONS="$FUZZER_OPTIONS -r $build/option"
+[ -f "$options" ] && FUZZER_OPTIONS="$FUZZER_OPTIONS -r $options"
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
-TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename $0)-XXXXXXXX)
+TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
 
 mod="$TMP/mod.aig"
 rm -f "$mod"
 "$aigfuzz" $FUZZER_OPTIONS $seed >"$mod"
 [ -z $seed ] && seed=$(grep -a 'seed' "$mod" | head -1 | awk '{print $NF}')
-echo $(basename $0): seed $seed
-echo $(basename $0): $(head -n 1 "$mod")
-"$certified" "$MC" "$mod" && exit 0
+echo $(basename "$0"): seed $seed
+echo $(basename "$0"): $(head -n 1 "$mod")
+"$certified" --mc_time=60 "$MC" "$mod" && exit 0
 res=$?
 echo bug: $seed
 mkdir -p "$BUGS"
@@ -34,5 +36,5 @@ aag="$BUGS"/aag-$seed.aag
 mv "$mod" "$big"
 "$aigdd" $big $red "$certified $MC"
 "$aigtoaig" $red $aag
-echo $(basename $0): reduced $(head -n 1 "$aag") "$(realpath $aag)"
+echo $(basename "$0"): reduced $(head -n 1 "$aag") "$(realpath $aag)"
 exit $res
