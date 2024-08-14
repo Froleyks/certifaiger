@@ -168,13 +168,12 @@ void check_reset_exists(
   auto [model_m, witness_m] = map_concatenated_circuits(
       check, model, witness, shared, &model_inputs_end);
   static constexpr unsigned EXIST = 0, ALL = 1, MAX_NAME_SIZE = 14;
-  for (unsigned l : inputs(check) | lits) {
+  for (auto &input : inputs(check)) {
+    unsigned l = input.lit;
     const bool in_model = l < model_inputs_end;
-    aiger_symbol *input = aiger_is_input(check, l);
-    assert(input);
-    input->name = static_cast<char *>(malloc(MAX_NAME_SIZE));
-    assert(input->name);
-    std::snprintf(input->name, MAX_NAME_SIZE, "%d %c%d", in_model ? EXIST : ALL,
+    input.name = static_cast<char *>(malloc(MAX_NAME_SIZE));
+    assert(input.name);
+    std::snprintf(input.name, MAX_NAME_SIZE, "%d %c%d", in_model ? EXIST : ALL,
                   in_model ? 'm' : 'w', l);
   }
   std::vector<unsigned> model_latch_is_reset;
@@ -223,7 +222,8 @@ void check_constraint(
   // C => C'
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
-  unsigned model_constraint = conj(check, constraints(model) | lits | map_at(model_m));
+  unsigned model_constraint =
+      conj(check, constraints(model) | lits | map_at(model_m));
   unsigned witness_constraint =
       conj(check, constraints(witness) | lits | map_at(witness_m));
   unsigned bad = conj(check, model_constraint, aiger_not(witness_constraint));
@@ -278,8 +278,7 @@ void check_base(aiger *check, const aiger *witness) {
     latch_is_reset.push_back(eq(check, m.at(l), m.at(r)));
   unsigned aig_is_reset = conj(check, latch_is_reset);
   unsigned constraint = conj(check, constraints(witness) | lits | map_at(m));
-  unsigned premise = conj(check, aig_is_reset, constraint);
-  unsigned bad = conj(check, premise, m.at(output(witness)));
+  unsigned bad = conj(check, {aig_is_reset, constraint, m.at(output(witness))});
   aiger_add_output(check, bad, "R' ^ C' ^ -P'");
 }
 
@@ -293,12 +292,11 @@ void check_step(aiger *check, const aiger *witness) {
   unsigned aig_is_next = conj(check, latch_is_next);
   unsigned current_constraint =
       conj(check, constraints(witness) | lits | map_at(current));
-  unsigned next_constraint = conj(check, constraints(witness) | lits | map_at(next));
-  unsigned constraint = conj(check, current_constraint, next_constraint);
-  unsigned unconstrained_premise =
-      conj(check, aiger_not(current.at(output(witness))), aig_is_next);
-  unsigned premise = conj(check, constraint, unconstrained_premise);
-  unsigned bad = conj(check, premise, next.at(output(witness)));
+  unsigned next_constraint =
+      conj(check, constraints(witness) | lits | map_at(next));
+  unsigned bad = conj(check, {aiger_not(current.at(output(witness))),
+                              aig_is_next, current_constraint, next_constraint,
+                              next.at(output(witness))});
   aiger_add_output(check, bad, "P0' ^ F' ^ C0' ^ C'1 ^ -P1'");
 }
 
