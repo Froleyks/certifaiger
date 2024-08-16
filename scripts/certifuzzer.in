@@ -41,7 +41,8 @@ echo
 "$MC" --range >"$options"
 sed -i \
   -e '/verbosity/d' \
-  -e '/certificate/d' \
+  -e '/certify/d' \
+  -e '/trace/d' \
   "$options"
 i=0
 while [ $i -lt "$n" ]; do
