@@ -41,7 +41,7 @@ echo
 "$MC" --range >"$options"
 sed -i \
   -e '/verbosity/d' \
-  -e '/certify/d' \
+  -e '/certificate/d' \
   -e '/trace/d' \
   "$options"
 i=0
