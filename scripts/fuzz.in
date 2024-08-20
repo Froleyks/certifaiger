@@ -19,7 +19,7 @@ out="$TMP/out"
 i=0
 safe=0
 unsafe=0
-timeout=0
+tout=0
 failed=0
 while true; do
     "$random" "$MC" >"$out"
@@ -30,12 +30,12 @@ while true; do
         elif grep -q 'certified: produced valid trace' "$out"; then
             ((unsafe += 1))
         elif grep -q 'certified: model checker timeout' "$out"; then
-            ((timeout += 1))
+            ((tout += 1))
         else
             echo "$(basename "$0"): ERROR in certified"
             exit 1
         fi
-        (((i += 1) % 10)) || echo fuzzed: $i $safe $unsafe $timeout $failed >>"$log"
+        (((i += 1) % 10)) || echo fuzzed: $i $safe $unsafe $tout $failed >>"$log"
         continue
     fi
     cat "$out"

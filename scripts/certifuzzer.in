@@ -46,7 +46,7 @@ sed -i \
   "$options"
 i=0
 while [ $i -lt "$n" ]; do
-  "$fuzz" "$MC" --time=60 &
+  "$fuzz" "$MC" &
   fuzzer[${i}]=$!
   ((i += 1))
 done
