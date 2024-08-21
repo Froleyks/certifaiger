@@ -259,12 +259,19 @@ void check_transition(
 
 void check_property(aiger *check, const aiger *model, const aiger *witness,
                     const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // P' => P
+  // P' ^ C' => P ^ C
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
-  unsigned bad = conj(check, aiger_not(witness_m.at(output(witness))),
-                      model_m.at(output(model)));
-  aiger_add_output(check, bad, "P' ^ -P");
+  unsigned model_c =
+      conj(check, constraints(model) | lits | map_at(model_m));
+  unsigned witness_c =
+      conj(check, constraints(witness) | lits | map_at(witness_m));
+  unsigned model_pc =
+      conj(check, aiger_not(model_m.at(output(model))), model_c);
+  unsigned bad = 
+      conj(check, {aiger_not(witness_m.at(output(witness))),
+                  witness_c, aiger_not(model_pc) });
+  aiger_add_output(check, bad, "P' ^ C' ^ -(P ^ C)");
 }
 
 void check_base(aiger *check, const aiger *witness) {
