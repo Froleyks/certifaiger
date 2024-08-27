@@ -19,8 +19,7 @@
 
 auto param(int argc, char *argv[]) {
   std::vector<const char *> checks{
-      "reset.aag",    "constraint.aag", "transition.aag",
-      "property.aag", "base.aag",       "step.aag",
+      "reset.aag", "transition.aag", "property.aag", "base.aag", "step.aag",
   };
   if (argc > 1 && !strcmp(argv[1], "--version")) {
     std::cout << VERSION << '\n';
@@ -76,6 +75,7 @@ void map_ands(aiger *to, std::vector<unsigned> &m, const aiger *from) {
 }
 // For two circuits C and C' the variable order is
 // I L (I'\K) (L'\K) A A' where K are the shared inputs/latches.
+// We also use X to denote I'\I and L'\L.
 std::pair<std::vector<unsigned>, std::vector<unsigned>>
 map_concatenated_circuits(
     aiger *combined, const aiger *left, const aiger *right,
@@ -91,6 +91,15 @@ map_concatenated_circuits(
   map_ands(combined, left_m, left);
   map_ands(combined, right_m, right);
   return {left_m, right_m};
+}
+
+void quantify(aiger *aig, unsigned l, bool existential) {
+  static constexpr unsigned EXIST = 0, ALL = 1, MAX_NAME_SIZE = 14;
+  aiger_symbol *input = aiger_is_input(aig, l);
+  assert(input);
+  input->name = static_cast<char *>(malloc(MAX_NAME_SIZE));
+  assert(input->name);
+  std::snprintf(input->name, MAX_NAME_SIZE, "%d", existential ? EXIST : ALL);
 }
 
 // Read the mapping of shared latches from the symbol table of the witness
@@ -123,7 +132,7 @@ auto shared_inputs_latches(const aiger *model, const aiger *witness) {
 
 // Checks if the circuit is stratified (no cyclic dependencies in the reset
 // definition). Assumes the latches are in reversd topological order.
-bool stratified(aiger *aig) {
+bool stratified_reset(aiger *aig) {
   std::vector<unsigned> s;
   std::vector<unsigned> visted(size(aig));
   unsigned time{1};
@@ -158,24 +167,36 @@ bool stratified(aiger *aig) {
   return true;
 }
 
+bool shared_constraint(
+    aiger *aig, const std::vector<std::pair<unsigned, unsigned>> &shared_lits) {
+  std::vector<char> shared(size(aig));
+  auto share = [&shared](unsigned l) {
+    shared.at(l) = true;
+    shared.at(aiger_not(l)) = true;
+  };
+  share(aiger_false);
+  for (auto [_, w] : shared_lits)
+    share(w);
+  for (auto a : ands(aig))
+    if (shared[a.rhs0] && shared[a.rhs1]) share(a.lhs);
+  for (unsigned l : constraints(aig) | lits)
+    if (!shared[l]) return false;
+  return true;
+}
+
 void check_reset_exists(
     aiger *check, const aiger *model, const aiger *witness,
     const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // exists(L'\L): R => R'
+  // exists(X): R => R'
   MSG << "Non-stratified reset definition\n";
   MSG << "Generating quantified circuit\n";
   unsigned model_inputs_end{};
   auto [model_m, witness_m] = map_concatenated_circuits(
       check, model, witness, shared, &model_inputs_end);
   static constexpr unsigned EXIST = 0, ALL = 1, MAX_NAME_SIZE = 14;
-  for (auto &input : inputs(check)) {
-    unsigned l = input.lit;
-    const bool in_model = l < model_inputs_end;
-    input.name = static_cast<char *>(malloc(MAX_NAME_SIZE));
-    assert(input.name);
-    std::snprintf(input.name, MAX_NAME_SIZE, "%d %c%d", in_model ? EXIST : ALL,
-                  in_model ? 'm' : 'w', l);
-  }
+  for (unsigned l : inputs(check) | lits)
+    quantify(check, l, l < model_inputs_end);
+
   std::vector<unsigned> model_latch_is_reset;
   model_latch_is_reset.reserve(model->num_latches);
   for (auto [l, r] : latches(model) | resets)
@@ -188,12 +209,12 @@ void check_reset_exists(
   unsigned model_is_reset = conj(check, model_latch_is_reset);
   unsigned witness_is_reset = conj(check, witness_latch_is_reset);
   unsigned bad = conj(check, model_is_reset, aiger_not(witness_is_reset));
-  aiger_add_output(check, bad, "exist(L) forall(L'\\L): R ^ -R'");
+  aiger_add_output(check, bad, "exist(L,I) forall(X): R ^ -R'");
 }
 
 void check_reset(aiger *check, const aiger *model, const aiger *witness,
                  const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // R|K => R'|K
+  // R(K) => R'(K)
   MSG << "Stratified reset definition\n";
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
@@ -213,27 +234,69 @@ void check_reset(aiger *check, const aiger *model, const aiger *witness,
   unsigned model_is_reset = conj(check, model_latch_is_reset);
   unsigned witness_is_reset = conj(check, witness_latch_is_reset);
   unsigned bad = conj(check, model_is_reset, aiger_not(witness_is_reset));
-  aiger_add_output(check, bad, "R|K ^ -R'|K");
+  aiger_add_output(check, bad, "R(K) ^ -R'(K)");
 }
 
-void check_constraint(
+void check_transition_exists(
     aiger *check, const aiger *model, const aiger *witness,
     const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // C => C'
-  auto [model_m, witness_m] =
-      map_concatenated_circuits(check, model, witness, shared);
-  unsigned model_constraint =
-      conj(check, constraints(model) | lits | map_at(model_m));
-  unsigned witness_constraint =
-      conj(check, constraints(witness) | lits | map_at(witness_m));
-  unsigned bad = conj(check, model_constraint, aiger_not(witness_constraint));
-  aiger_add_output(check, bad, "C ^ -C'");
+  // exists(X1): F ^ C0 ^ C1 ^ C0' => F' ^ C1'
+  MSG << "Non-shared witness constraint\n";
+  MSG << "Generating quantified circuit\n";
+  std::vector<unsigned> current_model_m{empty_map(model)},
+      next_model_m{empty_map(model)}, current_witness_m{empty_map(witness)},
+      next_witness_m{empty_map(witness)};
+  map_inputs_and_latches(check, current_model_m, model);
+  for (auto [m, w] : shared)
+    map(current_witness_m, w, current_model_m.at(m));
+  map_inputs_and_latches(check, current_witness_m, witness);
+  map_inputs_and_latches(check, next_model_m, model);
+  for (auto [m, w] : shared)
+    map(next_witness_m, w, next_model_m.at(m));
+  const unsigned next_model_inputs_end = size(check);
+  map_inputs_and_latches(check, next_witness_m, witness);
+  map_ands(check, current_model_m, model);
+  map_ands(check, current_witness_m, witness);
+  map_ands(check, next_model_m, model);
+  map_ands(check, next_witness_m, witness);
+  static constexpr unsigned EXIST = 0, ALL = 1, MAX_NAME_SIZE = 14;
+  for (unsigned l : inputs(check) | lits)
+    quantify(check, l, l < next_model_inputs_end);
+
+  std::vector<unsigned> model_latch_is_next;
+  model_latch_is_next.reserve(model->num_latches);
+  for (auto [l, n] : latches(model) | nexts)
+    model_latch_is_next.push_back(
+        eq(check, current_model_m.at(n), next_model_m.at(l)));
+  std::vector<unsigned> witness_latch_is_next;
+  witness_latch_is_next.reserve(witness->num_latches);
+  for (auto [l, n] : latches(witness) | nexts)
+    witness_latch_is_next.push_back(
+        eq(check, current_witness_m.at(n), next_witness_m.at(l)));
+  unsigned model_is_next = conj(check, model_latch_is_next);
+  unsigned witness_is_next = conj(check, witness_latch_is_next);
+  unsigned current_model_is_constrained =
+      conj(check, constraints(model) | lits | map_at(current_model_m));
+  unsigned current_witness_is_constrained =
+      conj(check, constraints(witness) | lits | map_at(current_witness_m));
+  unsigned next_model_is_constrained =
+      conj(check, constraints(model) | lits | map_at(next_model_m));
+  unsigned next_witness_is_constrained =
+      conj(check, constraints(witness) | lits | map_at(next_witness_m));
+  unsigned conclusion =
+      conj(check, witness_is_next, next_witness_is_constrained);
+  unsigned bad =
+      conj(check, {model_is_next, current_model_is_constrained,
+                   next_model_is_constrained, current_witness_is_constrained,
+                   aiger_not(conclusion)});
+  aiger_add_output(check, bad,
+                   "exist(I0,L0,X0) forall(X1): F ^ C0 ^ C1 ^ C0' -(F' ^ C1')");
 }
 
 void check_transition(
     aiger *check, const aiger *model, const aiger *witness,
     const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  // F|K => F'|K
+  // F(K) => F'(K)
   auto [model_m, witness_m] =
       map_concatenated_circuits(check, model, witness, shared);
   std::vector<unsigned> model_latch_is_next;
@@ -254,7 +317,7 @@ void check_transition(
   unsigned model_is_next = conj(check, model_latch_is_next);
   unsigned witness_is_next = conj(check, witness_latch_is_next);
   unsigned bad = conj(check, model_is_next, aiger_not(witness_is_next));
-  aiger_add_output(check, bad, "F|K ^ -F'|K");
+  aiger_add_output(check, bad, "F(K) ^ -F'(K)");
 }
 
 void check_property(aiger *check, const aiger *model, const aiger *witness,
@@ -283,7 +346,7 @@ void check_base(aiger *check, const aiger *witness) {
 }
 
 void check_step(aiger *check, const aiger *witness) {
-  // P0' ^ F' ^ C0' ^ C'1 => P1'
+  // P0' ^ F' ^ C0' ^ C1' => P1'
   auto [current, next] = map_concatenated_circuits(check, witness, witness);
   std::vector<unsigned> latch_is_next;
   latch_is_next.reserve(witness->num_latches);
@@ -297,7 +360,7 @@ void check_step(aiger *check, const aiger *witness) {
   unsigned bad = conj(check, {aiger_not(current.at(output(witness))),
                               aig_is_next, current_constraint, next_constraint,
                               next.at(output(witness))});
-  aiger_add_output(check, bad, "P0' ^ F' ^ C0' ^ C'1 ^ -P1'");
+  aiger_add_output(check, bad, "P0' ^ F' ^ C0' ^ C1' ^ -P1'");
 }
 
 int main(int argc, char *argv[]) {
@@ -309,15 +372,19 @@ int main(int argc, char *argv[]) {
   std::vector<std::pair<unsigned, unsigned>> shared =
       shared_inputs_latches(*model, *witness);
 
-  const bool circuits_stratified = stratified(*model) && stratified(*witness);
-  if (circuits_stratified)
-    check_reset(*OutAIG(checks[0]), *model, *witness, shared);
-  else
+  const bool stratified = stratified_reset(*witness);
+  const bool shared = shared_constraint(*witness, shared);
+  if (!stratified || !shared)
     check_reset_exists(*OutAIG(checks[0]), *model, *witness, shared);
-  check_constraint(*OutAIG(checks[1]), *model, *witness, shared);
-  check_transition(*OutAIG(checks[2]), *model, *witness, shared);
-  check_property(*OutAIG(checks[3]), *model, *witness, shared);
-  check_base(*OutAIG(checks[4]), *witness);
-  check_step(*OutAIG(checks[5]), *witness);
-  if (!circuits_stratified) return 15;
+  else
+    check_reset(*OutAIG(checks[0]), *model, *witness, shared);
+  if (!shared)
+    check_transition_exists(*OutAIG(checks[1]), *model, *witness, shared);
+  else
+    check_transition(*OutAIG(checks[1]), *model, *witness, shared);
+  check_property(*OutAIG(checks[2]), *model, *witness, shared);
+  check_base(*OutAIG(checks[3]), *witness);
+  check_step(*OutAIG(checks[4]), *witness);
+  if (!shared) return 16;
+  if (!stratified) return 15;
 }

@@ -13,28 +13,50 @@ done
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
-CHECKS=(reset constraint transition property base step)
+CHECKS=(reset transition property base step)
 AIGS=()
 for check in "${CHECKS[@]}"; do
     AIGS+=("${TMP}/$check.aig")
 done
-non_stratified=false
 echo $(basename "$0"): Checking witness circuit "$2"
 $certifaiger "$1" "$2" "${AIGS[@]}"
 certifaiger_exit=$?
+QBF_reset=false
+QBF_transition=false
 case $certifaiger_exit in
 0) ;;
 15)
-    non_stratified=true
-    CHECKS=(constraint transition property base step)
+    QBF_reset=true
+    CHECKS=(transition property base step)
+    ;;
+16)
+    QBF_reset=true
+    QBF_transition=true
+    CHECKS=(property base step)
     ;;
 *) echo "Error: certifaiger failed with exit code $certifaiger_exit" ;;
 esac
 echo
 
 ALL_SUCCESS=true
-if [ $non_stratified = true ]; then
+if [ $QBF_reset = true ] || [ $QBF_transition = true ]; then
+    for i in qaiger2qcir quabs; do
+        [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
+    done
+fi
+if [ $QBF_reset = true ]; then
     check="reset"
+    echo Checking ${check} with quantification
+    $qaiger2qcir "${TMP}/$check.aig" >"${TMP}/$check.qcir"
+    $quabs "${TMP}/$check.qcir"
+    if [ $? -ne 20 ]; then
+        ALL_SUCCESS=false
+        echo "Error: ${check} check failed"
+    fi
+    echo
+fi
+if [ $QBF_transition = true ]; then
+    check="transition"
     echo Checking ${check} with quantification
     $qaiger2qcir "${TMP}/$check.aig" >"${TMP}/$check.qcir"
     $quabs "${TMP}/$check.qcir"
