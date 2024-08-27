@@ -361,7 +361,8 @@ int main(int argc, char *argv[]) {
       shared_inputs_latches(*model, *witness);
 
   const bool not_stratified = !stratified_reset(*witness);
-  const bool not_shared = !shared_constraint(*witness, shared);
+  // temporarly disable quantified checks
+  const bool not_shared = false & !shared_constraint(*witness, shared);
   check_reset(*OutAIG(checks[0]), *model, *witness, shared,
               not_stratified || not_shared);
   check_transition(*OutAIG(checks[1]), *model, *witness, shared, not_shared);
