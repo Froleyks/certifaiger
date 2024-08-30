@@ -18,63 +18,57 @@ AIGS=()
 for check in "${CHECKS[@]}"; do
     AIGS+=("${TMP}/$check.aig")
 done
+[[ "$1" == "--weak" ]] && WEAK=$1 && shift 1
 echo $(basename "$0"): Checking witness circuit "$2"
-$certifaiger "$1" "$2" "${AIGS[@]}"
+$certifaiger $WEAK "$1" "$2" "${AIGS[@]}"
 certifaiger_exit=$?
-QBF_reset=false
-QBF_transition=false
-case $certifaiger_exit in
-0) ;;
-15)
-    QBF_reset=true
-    CHECKS=(transition property base step)
-    ;;
-16)
-    QBF_reset=true
-    QBF_transition=true
-    CHECKS=(property base step)
-    ;;
-*) echo "Error: certifaiger failed with exit code $certifaiger_exit" ;;
-esac
+QBF_transition=$(((certifaiger_exit >> 2) & 1))
+QBF_reset=$(((certifaiger_exit >> 1) & 1))
+((certifaiger_exit & 1)) && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit)" >&2 && exit 1
 echo
 
 ALL_SUCCESS=true
-if [ $QBF_reset = true ] || [ $QBF_transition = true ]; then
+
+drop_check() {
+    local new_checks=()
+    for item in "${CHECKS[@]}"; do
+        if [ "$item" != "$1" ]; then
+            new_checks+=("$item")
+        fi
+    done
+    CHECKS=("${new_checks[@]}")
+}
+
+sat() {
+    echo Checking $1
+    $aigtocnf "${TMP}/$1.aig" "${TMP}/$1.cnf"
+    $sat_solver --quiet "${TMP}/$1.cnf"
+    if [ $? -ne 20 ]; then
+        ALL_SUCCESS=false
+        echo "Error: $1 check failed"
+    fi
+    echo
+}
+
+qbf() {
     for i in qaiger2qcir quabs; do
         [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
     done
-fi
-if [ $QBF_reset = true ]; then
-    check="reset"
-    echo Checking ${check} with quantification
-    $qaiger2qcir "${TMP}/$check.aig" >"${TMP}/$check.qcir"
-    $quabs "${TMP}/$check.qcir"
+    drop_check $1
+    echo Checking $1 with quantification
+    $qaiger2qcir "${TMP}/$1.aig" >"${TMP}/$1.qcir"
+    $quabs "${TMP}/$1.qcir"
     if [ $? -ne 20 ]; then
         ALL_SUCCESS=false
-        echo "Error: ${check} check failed"
+        echo "Error: $1 check failed"
     fi
     echo
-fi
-if [ $QBF_transition = true ]; then
-    check="transition"
-    echo Checking ${check} with quantification
-    $qaiger2qcir "${TMP}/$check.aig" >"${TMP}/$check.qcir"
-    $quabs "${TMP}/$check.qcir"
-    if [ $? -ne 20 ]; then
-        ALL_SUCCESS=false
-        echo "Error: ${check} check failed"
-    fi
-    echo
-fi
+}
+
+((QBF_reset)) && qbf "reset"
+((QBF_transition)) && qbf "transition"
 for check in "${CHECKS[@]}"; do
-    echo Checking "$check"
-    $aigtocnf "${TMP}/$check.aig" "${TMP}/$check.cnf"
-    $sat_solver --quiet "${TMP}/$check.cnf"
-    if [ $? -ne 20 ]; then
-        ALL_SUCCESS=false
-        echo "Error: ${check} check failed"
-    fi
-    echo
+    sat $check
 done
 if $ALL_SUCCESS; then
     echo "Success: Certificate check passed."

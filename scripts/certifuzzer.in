@@ -38,7 +38,7 @@ if [ $old_bugs -gt 0 ]; then
   echo $(basename "$0"): "run rm -r $BUGS"
 fi
 echo
-"$MC" --range >"$options"
+"$MC" --range >"$options" 2>/dev/null
 sed -i \
   -e '/verbosity/d' \
   -e '/certificate/d' \

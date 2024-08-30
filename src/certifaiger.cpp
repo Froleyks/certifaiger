@@ -25,16 +25,17 @@ auto param(int argc, char *argv[]) {
     std::cout << VERSION << '\n';
     exit(0);
   }
-  if (argc < 3) {
+  bool weak = argc > 1 && !strcmp(argv[1], "--weak");
+  if (argc < 3 || (argc < 4 && weak)) {
     std::cerr << "Usage: " << argv[0] << " <model> <witness> [";
     for (const char *o : checks)
       std::cerr << " <" << o << ">";
     std::cerr << " ]\n";
     exit(1);
   }
-  for (int i = 3; i < argc; ++i)
-    checks[i - 3] = argv[i];
-  return std::tuple{argv[1], argv[2], checks};
+  for (int i = 3 + weak; i < argc; ++i)
+    checks[i - (3 + weak)] = argv[i];
+  return std::tuple{argv[1 + weak], argv[2 + weak], checks, weak};
 }
 
 // The ecoding of the checks requires us to map the literals in one circuit to
@@ -204,7 +205,7 @@ void check_reset(aiger *check, const aiger *model, const aiger *witness,
       witness_latch_reset.push_back(
           eq(check, witness_m.at(l), witness_m.at(r)));
     bad_description = "exist(I,L) forall(X) R ^ C ^ -(R' ^ C')";
-  } else { // R(K) ^ C => R'(K) ^ C'
+  } else { // R{K} ^ C => R'{K} ^ C'
     model_latch_reset.reserve(shared.size());
     witness_latch_reset.reserve(shared.size());
     for (auto [model_l, witness_l] : shared) {
@@ -216,7 +217,7 @@ void check_reset(aiger *check, const aiger *model, const aiger *witness,
             eq(check, witness_m.at(witness_l),
                witness_m.at(reset(witness, witness_l))));
     }
-    bad_description = "R(K) ^ C ^ -(R'(K) ^ C')";
+    bad_description = "R{K} ^ C ^ -(R'{K} ^ C')";
   }
 
   unsigned model_reset = conj(check, model_latch_reset);
@@ -264,8 +265,9 @@ void check_transition(aiger *check, const aiger *model, const aiger *witness,
     for (auto [l, n] : latches(witness) | nexts)
       witness_latch_tarnsition.push_back(
           eq(check, current_witness_m.at(n), next_witness_m.at(l)));
-    bad_description = "exist(I0,L0,I1,L1,X0) forall(X1) F ^ C0 ^ C1 ^ C0' ^ -(F' ^ C1')";
-  } else { // F(K) ^ C0 ^ C1 ^ C0' => F'(K) ^ C1'
+    bad_description =
+        "exist(I0,L0,I1,L1,X0) forall(X1) F ^ C0 ^ C1 ^ C0' ^ -(F' ^ C1')";
+  } else { // F{K} ^ C0 ^ C1 ^ C0' => F'{K} ^ C1'
     model_latch_transition.reserve(shared.size());
     witness_latch_tarnsition.reserve(shared.size());
     for (auto [model_l, witness_l] : shared) {
@@ -279,7 +281,7 @@ void check_transition(aiger *check, const aiger *model, const aiger *witness,
             eq(check, current_witness_m.at(next(witness, witness_l)),
                next_witness_m.at(witness_l)));
     }
-    bad_description = "F(K) ^ C0 ^ C1 ^ C0' ^ -(F'(K) ^ C1')";
+    bad_description = "F{K} ^ C0 ^ C1 ^ C0' ^ -(F'{K} ^ C1')";
   }
 
   unsigned model_tarnsition = conj(check, model_latch_transition);
@@ -352,7 +354,7 @@ void check_step(aiger *check, const aiger *witness) {
 }
 
 int main(int argc, char *argv[]) {
-  auto [model_path, witness_path, checks] = param(argc, argv);
+  auto [model_path, witness_path, checks, weak] = param(argc, argv);
   MSG << "Certify Model Checking Witnesses in AIGER\n";
   MSG << VERSION " " GITID "\n";
   InAIG model(model_path);
@@ -360,15 +362,12 @@ int main(int argc, char *argv[]) {
   std::vector<std::pair<unsigned, unsigned>> shared =
       shared_inputs_latches(*model, *witness);
 
-  const bool not_stratified = !stratified_reset(*witness);
-  // temporarly disable quantified checks
-  const bool not_shared = false & !shared_constraint(*witness, shared);
-  check_reset(*OutAIG(checks[0]), *model, *witness, shared,
-              not_stratified || not_shared);
-  check_transition(*OutAIG(checks[1]), *model, *witness, shared, not_shared);
+  const bool QBF_trans = weak && !shared_constraint(*witness, shared);
+  const bool QBF_reset = QBF_trans || !stratified_reset(*witness);
+  check_reset(*OutAIG(checks[0]), *model, *witness, shared, QBF_reset);
+  check_transition(*OutAIG(checks[1]), *model, *witness, shared, QBF_trans);
   check_property(*OutAIG(checks[2]), *model, *witness, shared);
   check_base(*OutAIG(checks[3]), *witness);
   check_step(*OutAIG(checks[4]), *witness);
-  if (not_shared) return 16;
-  if (not_stratified) return 15;
+  return (QBF_trans << 2) | (QBF_reset << 1);
 }
