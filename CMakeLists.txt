@@ -28,7 +28,8 @@ set(CMAKE_CXX_FLAGS_FUZZING "-O3" CACHE STRING "Flags for fuzzing build type" FO
 # Dependencies:
 include(ExternalProject)
 function(git_submodule)
-  if(GIT AND NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/dependencies/${ARGV0})
+  file(GLOB DIR_CONTENTS ${CMAKE_CURRENT_LIST_DIR}/${ARGV0}/*)
+  if(GIT AND DIR_CONTENTS STREQUAL "")
     find_package(Git QUIET)
     execute_process(
       COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive ${ARGV0}
