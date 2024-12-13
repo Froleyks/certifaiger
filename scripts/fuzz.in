@@ -25,9 +25,9 @@ while true; do
     "$random" "$MC" >"$out"
     res=$?
     if [ $res -eq 0 ]; then
-        if grep -q 'certified: produced valid witness circuit' "$out"; then
+        if grep -q 'check_safe: Certificate check passed.' "$out"; then
             ((safe += 1))
-        elif grep -q 'certified: produced valid trace' "$out"; then
+        elif grep -q 'check_unsafe: Trace simulation passed' "$out"; then
             ((unsafe += 1))
         elif grep -q 'certified: model checker timeout' "$out"; then
             ((tout += 1))
