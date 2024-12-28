@@ -1,6 +1,6 @@
 * Certifaiger
 #+html: <img src="logo.png" width="300px" align="right"/>
-[[https://github.com/Froleyks/certifaiger][Certifaiger]] checks the correctness of witnesses circuits in [[https://github.com/arminbiere/aiger][AIGER]].
+[[https://github.com/Froleyks/certifaiger][Certifaiger]] checks the correctness of witness circuits in [[https://github.com/arminbiere/aiger][AIGER]].
 
 ** Quickstart
 
@@ -11,9 +11,9 @@ cd certifaiger && make
 ./build/check examples/01_model.aag examples/06_witness.aag
 #+end_src
 
-Checkout the step-by-step [[https://github.com/Froleyks/certifaiger/blob/main/examples][example]].
+Check out the step-by-step [[https://github.com/Froleyks/certifaiger/blob/main/examples][example]].
 
-The [[https://github.com/Froleyks/certifaiger/blob/main/scripts/README.org][scripts]] directory provides examples of further use.
+The [[https://github.com/Froleyks/certifaiger/blob/main/scripts/README.org][scripts]] directory includes addititonal usage exapmles.
 ** Motivation
 Model checking is an essential technique for hardware design.
 For unsafe circuits, those that violate the property being checked, it is usually easy to produce a trace to demonstrate the flaw.
@@ -24,29 +24,30 @@ A witness circuit generalizes the concept of an inductive invariant.
 Instead of searching for an inductive invariant in the model itself, we find a different circuit -- the witness -- that simulates part of the model and has an inductive invariant.
 ** Witness circuits
 To check if a witness circuit is valid for a given model, Certifaiger performs five checks.
-For an AIGER circuit $C$ we use
-$R(L), F(L, \hat{L}), P(I, L)$
+For an AIGER circuit $M$ we use
+$R, C, P$, F
 to refer to the symbolic formulas encoding that:
 - The latches in $L$ are in their reset.
-- The latches in $\hat{L}$ are equal to the /next/ of the matching latch in $L$.
+- All constraints hold.
 - The property holds on the inputs and latches in $I \cup L$, i.e. the /bad/ or /output/ is not set.
+- The latches in $L_{1}$ are equal to the /next/ of the matching latch in $L_{0}$. The two copies of the latches and inputs also implicitly define two temporal copies of the other formulas, i.e., $R_{0}$, $R_{1}$, $C_{0}, C_{1, }\dots$.
 
 These formulas can be encoded as combinatorial AIGER circuits by replacing latches with inputs, resulting in a DAG with a single output and leaves ending in inputs or constants.
 
 Note that we use a (slightly) modified version of the AIGER 1.9 format.
 Our witness circuits may require the use of /reset functions/,
 that is, latches may be reset to other latches or gates,
-instead of just constants (or stay uninitialized).
+instead of just constants (or staying uninitialized).
 
-For a model $C$ and witness circuit $C'$,
-let $R, F, P, I, L$ and their primed version be the formulas from above and the set of all inputs and latches in the respective circuit,
-$M$ is the intersection of latches and inputs between the two.
+For a model $M$ and witness circuit $M'$,
+let $R, C, F, P, I, L$ and their primed version be the formulas from above and the set of all inputs and latches in the respective circuit,
+$K$ is the intersection of latches and inputs between the two.
 The five checks are:
-| Reset      | $R(M) \Rightarrow R'(M)$                               |
-| Transition | $F(M,\hat{M}) \Rightarrow F'(M,\hat{M})$               |
-| Property   | $P'(I',L') \Rightarrow P(I,L)$                         |
-| Base       | $R'(L') \Rightarrow P'(I',L')$                         |
-| Step       | $(P'(L') \wedge F'(L', \hat{L'})) \Rightarrow P'(\hat{L'})$ |
+| Reset      | R{K} \wedge C \Rightarrow R'{K} \wedge C'              |
+| Transition | F{K} \wedge C0 \wedge C1 \wedge C0' \Rightarrow F'{K} \wedge C1' |
+| Property   | (C \wedge C') \Rightarrow (P \Rightarrow P')                |
+| Base       | R' \wedge C' \Rightarrow P'                       |
+| Step       | P0' \wedge F' \wedge C0' \wedge C1' \Rightarrow P1'         |
 
 For a witness and model that pass the first three checks, the witness is said to simulate the model.
 The last two check the inductiveness of the property in the witness circuit.
@@ -90,15 +91,17 @@ l1 = 4
 c
 WITNESS o0 model.aig shasum 9f1747da5a7dd981c9dac13f4077c8e31c9ce50d
 #+end_example
-To allow the translation between the two formats without breaking the mapping, Certifaiger enforces that the inputs and latches are indexed consecutively even in the ASCII format.
+To allow the translation between the two formats without breaking the mapping, Certifaiger enforces consecutive indexing for inputs and latches, even in ASCII format.
 
-While not required it is recommended to include a comment starting with 'WITNESS' followed by the property being certified and the name of the model file. Additionally, a hash may be included.
+While not required, it is recommended to include a comment starting with 'WITNESS' followed by the property being certified and the name of the model file. Additionally, a hash may be included.
 
-If no mapping information is found, Certifaiger assumes that all inputs and latches of the model are mapped to the same indices in the witness and the first bad or in absence the first output is certified.
-Checkout the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
+If no mapping information is found, Certifaiger assumes that
+the first $n$ inputs in the model are simulated by the first $n$ inputs in the witness, and the first $m$ latches by the first $m$ latches in the witness.
+The first bad or in the absence of that the first output is certified.
+Check out the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
 ** References
 The theory this tool is based on is detailed in our papers.
-Beyond that, we demonstrate how to certify the combination of different preprocessing techniques and model checking algorithms with witness circuits.
+Furthermore, we demonstrate how to certify the combination of different preprocessing techniques and model checking algorithms with witness circuits.
 | Progress in Certifying Hardware Model Checking Results      | Yu, Biere & Heljanko        | CAV21   |
 | Stratified Certification for K-Induction                    | Yu, Froleyks & Biere et al. | FMCAD22 |
 | Towards Compositional Hardware Model Checking Certification | Yu, Froleyks & Biere et al. | FMCAD23 |

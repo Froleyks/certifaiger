@@ -104,8 +104,8 @@ void quantify(aiger *aig, unsigned l, bool existential) {
 }
 
 // Read the mapping of shared latches from the symbol table of the witness
-// circuit. If no mapping is found, it is assumed that the entire model is
-// embedded at the beginning of the witness.
+// circuit. If no mapping is found, it is assumed that the first inputs map to
+// each other and the first latches map to each other.
 auto shared_inputs_latches(const aiger *model, const aiger *witness) {
   std::vector<std::pair<unsigned, unsigned>> shared;
   shared.reserve(model->num_inputs + model->num_latches);
@@ -123,10 +123,12 @@ auto shared_inputs_latches(const aiger *model, const aiger *witness) {
   }
   if (shared.empty()) {
     MSG << "No witness mapping found, using default\n";
-    for (unsigned l : inputs(model) | lits)
-      shared.emplace_back(l, l);
-    for (unsigned l : latches(model) | lits)
-      shared.emplace_back(l, l);
+    const size_t n = std::min(model->num_inputs, witness->num_inputs);
+    const size_t m = std::min(model->num_latches, witness->num_latches);
+    for (size_t i = 0; i < n; ++i)
+      shared.emplace_back(model->inputs[i].lit, witness->inputs[i].lit);
+    for (size_t i = 0; i < m; ++i)
+      shared.emplace_back(model->latches[i].lit, witness->latches[i].lit);
   }
   return shared;
 }
