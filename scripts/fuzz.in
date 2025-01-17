@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 FAILURES=1 # number of failures before exit
-build=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 BUGS="$build/bug"
 random="$build/random"
 for i in random; do

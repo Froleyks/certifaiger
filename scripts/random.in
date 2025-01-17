@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 FUZZER_OPTIONS='-2 -m -S -s'
 # FUZZER_OPTIONS='-2 -m -S'
-build=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 BUGS="$build/bug"
 certified="$build/certified"
 aigfuzz="$build/aiger/aigfuzz"

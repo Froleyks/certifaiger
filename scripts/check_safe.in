@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-build=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 certifaiger="$build/certifaiger"
 sat_solver="$build/kissat/kissat"
 aigtocnf="$build/aiger/aigtocnf"
