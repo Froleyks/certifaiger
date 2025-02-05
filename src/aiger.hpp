@@ -120,12 +120,10 @@ unsigned output(const aiger *aig) {
 }
 
 auto lits = std::views::transform([](const auto &l) { return l.lit; });
-auto nexts = std::views::transform([](const auto &l) {
-  return std::pair{l.lit, l.next};
-});
-auto resets = std::views::transform([](const auto &l) {
-  return std::pair{l.lit, l.reset};
-});
+auto nexts = std::views::transform(
+    [](const auto &l) { return std::pair{l.lit, l.next}; });
+auto resets = std::views::transform(
+    [](const auto &l) { return std::pair{l.lit, l.reset}; });
 auto initialized =
     std::views::filter([](const auto &l) { return l.reset != l.lit; });
 auto uninitialized =
