@@ -74,7 +74,7 @@ Therefore, Certifaiger implements the stronger check Reset^{\exists} if the poly
 The explicit quantifier is necessary as otherwise every extension to $L'$ of a reset in $C$ (reduced to $M$) would need to be a valid reset in $C'$.
 This very strong condition would be unlikely to hold if $C'$ introduces any additional latches.
 Since the formula is checked for validity, we have the quantifier alternation \exists\forall when encoding Reset^{\exists} and are no longer in coNP.
-In practice, Certifaiger encodes Reset^{\exists} as a [[https://github.com/ltentrup/quabs][QAIGER]] circuit which is then translated to QCIR and checked with [[https://github.com/ltentrup/quabs][QuAbS]].
+In practice, Certifaiger encodes Reset^{\exists} as a [[https://github.com/ltentrup/QAIGER][QAIGER]] circuit which is then translated to QCIR and checked with [[https://github.com/ltentrup/quabs][QuAbS]].
 Certifaiger will pick the appropriate Reset check without further interaction; however, note that the tool will return exit code 15 if a QAIGER formula was produced.
 See [[https://github.com/Froleyks/certifaiger/blob/main/check_certificate.sh][check_certificate.sh]] for more details.
 ** Witness Format
