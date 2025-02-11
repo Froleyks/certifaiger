@@ -15,3 +15,5 @@ i1 oracle
 i2 oracle
 l0 = 4
 l1 = 6
+c
+../build/check uniqueness_model.aag uniqueness_witness.aag --qbf 0 0 0 0 1
