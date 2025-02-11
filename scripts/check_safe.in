@@ -18,13 +18,14 @@ AIGS=()
 for check in "${CHECKS[@]}"; do
     AIGS+=("${TMP}/$check.aig")
 done
-[[ "$1" == "--weak" ]] && WEAK=$1 && shift 1
-echo $(basename "$0"): Checking witness circuit "$2"
-$certifaiger $WEAK "$1" "$2" "${AIGS[@]}"
+model="$1"
+witness="$2"
+shift 2
+echo $(basename "$0"): Checking witness circuit "$witness"
+$certifaiger "$model" "$witness" "${AIGS[@]}" "$@"
+echo $certifaiger "$model" "$witness" "${AIGS[@]}" "$@"
 certifaiger_exit=$?
-QBF_transition=$(((certifaiger_exit >> 2) & 1))
-QBF_reset=$(((certifaiger_exit >> 1) & 1))
-((certifaiger_exit & 1)) && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit)" >&2 && exit 1
+[ $certifaiger_exit -ne 0 ] && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit)" >&2 && exit 1
 echo
 
 ALL_SUCCESS=true
@@ -65,10 +66,12 @@ qbf() {
     echo
 }
 
-((QBF_reset)) && qbf "reset"
-((QBF_transition)) && qbf "transition"
 for check in "${CHECKS[@]}"; do
-    sat $check
+    if grep -q 'Quantified universal' "${TMP}/$check.aig"; then
+        qbf $check
+    else
+        sat $check
+    fi
 done
 if $ALL_SUCCESS; then
     echo $(basename "$0"): Certificate check passed.

@@ -7,7 +7,6 @@
 #+begin_src bash
 git clone https://github.com/Froleyks/certifaiger
 cd certifaiger && make
-# if resets are not stratified: make qbf
 ./build/check examples/01_model.aag examples/06_witness.aag
 #+end_src
 
@@ -55,28 +54,6 @@ The last two check the inductiveness of the property in the witness circuit.
 The validity of these formulas is checked by encoding their negation into combinatorial circuits, translated to CNF using [[https://github.com/arminbiere/aiger][aigtocnf]], and checking unsatisfiability with [[https://github.com/arminbiere/kissat][Kissat]] or any other SAT solver.
 The produced certificates of unsatisfiability may additionally be checked by a [[https://satcompetition.github.io/2023/downloads/proposals/drat_dpr.pdf][verified proof checker]].
 The entire certificate check is coNP in the size of the circuits.
-** Stratification
-A circuit is said to be stratified if the syntactic dependency graph induced by its reset function is acyclic.
-This is usually not a big restriction and fairly common in practice.
-Since in the original AIGER format latches can only be reset to constants, stratification is trivial.
-The /semantic dependency graph/ is the subset of the syntactic dependency graph,
-where an edge $(a, b)$ indicates that
-an assignment exists where a change in $b$ would imply a change in $a$.
-
-In case both circuits are stratified,
-the Reset check above ensures that the set $M$ is at the bottom of the semantic dependency graph of either circuit,
-i.e., the reset of the latches in $M$ depends only on $M$.
-It follows that any reset of $M$ can be extended to a reset of $L$ and $L'$.
-
-If either circuit is not stratified, it is not guaranteed that a partial reset can be extended.
-Therefore, Certifaiger implements the stronger check Reset^{\exists} if the polynomial stratification test fails.
-| Reset^{\exists} | $R(L) \Rightarrow \exist(L' \setminus L): R'(L')$ |
-The explicit quantifier is necessary as otherwise every extension to $L'$ of a reset in $C$ (reduced to $M$) would need to be a valid reset in $C'$.
-This very strong condition would be unlikely to hold if $C'$ introduces any additional latches.
-Since the formula is checked for validity, we have the quantifier alternation \exists\forall when encoding Reset^{\exists} and are no longer in coNP.
-In practice, Certifaiger encodes Reset^{\exists} as a [[https://github.com/ltentrup/QAIGER][QAIGER]] circuit which is then translated to QCIR and checked with [[https://github.com/ltentrup/quabs][QuAbS]].
-Certifaiger will pick the appropriate Reset check without further interaction; however, note that the tool will return exit code 15 if a QAIGER formula was produced.
-See [[https://github.com/Froleyks/certifaiger/blob/main/check_certificate.sh][check_certificate.sh]] for more details.
 ** Witness Format
 Witness circuits are normal AIGER circuits in either ASCII or binary format.
 
@@ -99,6 +76,46 @@ If no mapping information is found, Certifaiger assumes that
 the first $n$ inputs in the model are simulated by the first $n$ inputs in the witness, and the first $m$ latches by the first $m$ latches in the witness.
 The first bad or in the absence of that the first output is certified.
 Check out the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
+** Quantified Checks
+By default Certifaiger produces checks as AIGER ceircuits which are then translated to CNF formulas. When specifying the /--qbf/ option, some of the checks might be expressed as
+[[https://github.com/ltentrup/QAIGER][QAIGER]] circuit which are translated to QBF formulas. The quantified checks are weaker, i.e., it might be easier to find a witness that passes them. However this comes at significantly higher computational cost.
+For the same reason Certifaiger employs a number of heuristic to use as few quantified checks as possible.
+
+The table below lists the relaxed versions of each check together with the maximum number of quantifier alternations that can be specified (/--qbf 2 2 1 0 1/ the same is achieved with just --qbf).
+
+| Reset      | 2 | R \wedge C \Rightarrow \exists X'\forall O.(R' \wedge C')                |
+| Transition | 2 | F \wedge C0 \wedge C1 \wedge C0' \Rightarrow \exists X1'\forall O1.(F' \wedge C1') |
+| Property   | 1 | C \wedge \neg P \Rightarrow \exists X'\forall O.(C' \wedge \neg P')            |
+| Base       | 0 | R' \wedge C' \Rightarrow P'                             |
+| Step       | 1 | \forall O.(P0' \vee \neg C0') \wedge C0' \wedge F' \wedge C1' \Rightarrow P1' |
+
+Here $X$ refers to the parts of the witness circuit not in the model and $O$ refers to the set of /oracles/ discussed later. Before we need to discuss /stratified/ reset functions which enable the quantifier free version of the reset check.
+** Stratified Reset
+A circuit is said to be stratified if the syntactic dependency graph induced by its reset function is acyclic.
+This is usually not a big restriction and fairly common in practice.
+Since in the original AIGER format latches can only be reset to constants, stratification is trivial.
+The /semantic dependency graph/ is the subset of the syntactic dependency graph,
+where an edge $(a, b)$ indicates that
+an assignment exists where a change in $b$ would imply a change in $a$.
+
+If the witness circuit is stratifed,
+the Reset check above ensures that the set of shared latches $M$ is at the bottom of the semantic dependency graph of $R'$,
+i.e., the reset of the latches in $M$ depends only on $M$.
+It follows that any reset of $M$ can be extended to a reset of $L'$.
+
+If the witness circuit is not stratified, it is not guaranteed that a partial reset can be extended.
+Therefore, Certifaiger will fail certification if the polynomial stratification test fails and /--qbf 1/ is not specified.
+** Oracles
+Witness circuits can designate a subset of their inputs as oracles. Oracles allow to reason about sets of extensions in the witness for a single state in the model. The relaxed version of the step check above takes advantage of that by only requiring a next state to be save if all states in the class induced by the oracles on the current state are save.
+#+begin_example
+i1 oracle
+i2 oracle
+#+end_example
+
+The only model checking technique that requires oracles we have encountered so far is k-induction under uniqueness constants.
+For a $k$-inductive model $M=(I,L,R,F,P,C)$, a valid witness $W=(I',O',L,R,F,P',C')$ may be constructed with I' = I^{0} \cup \dots \cup I^{k-1} where I^{0} = I, O' = I' \ I;
+P' = \wedge_{i\in[0,k)} P_{i}, and C' = \wedge_{i\in[0,k)} C_{i}.
+A witness resulting form this construction can be found in the examples directory.
 ** References
 The theory this tool is based on is detailed in our papers.
 Furthermore, we demonstrate how to certify the combination of different preprocessing techniques and model checking algorithms with witness circuits.
