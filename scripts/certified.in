@@ -23,7 +23,7 @@ if [[ $# -ge 3 && $3 != -* ]]; then
     shift
 fi
 shift 2
-$limit $MC "$MODEL" "$WIT" "$@"
+$limit $MC "$MODEL" "$WIT" "$WIT" "$@"
 res=$?
 echo $(basename "$0"): model checker exit code $res
 if [ $res -eq 124 ]; then
