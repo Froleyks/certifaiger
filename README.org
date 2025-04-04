@@ -24,12 +24,12 @@ Instead of searching for an inductive invariant in the model itself, we find a d
 ** Witness circuits
 To check if a witness circuit is valid for a given model, Certifaiger performs five checks.
 For an AIGER circuit $M$ we use
-$R, C, P$, F
+$R, C, P, F$
 to refer to the symbolic formulas encoding that:
 - The latches in $L$ are in their reset.
 - All constraints hold.
 - The property holds on the inputs and latches in $I \cup L$, i.e. the /bad/ or /output/ is not set.
-- The latches in $L_{1}$ are equal to the /next/ of the matching latch in $L_{0}$. The two copies of the latches and inputs also implicitly define two temporal copies of the other formulas, i.e., $R_{0}$, $R_{1}$, $C_{0}, C_{1, }\dots$.
+- The latches in $L_1$ are equal to the /next/ of the matching latch in $L_0$. The two copies of the latches and inputs also implicitly define two temporal copies of the other formulas, i.e., $R_0$, $R_1$, $C_0, C_1, \dots$
 
 These formulas can be encoded as combinatorial AIGER circuits by replacing latches with inputs, resulting in a DAG with a single output and leaves ending in inputs or constants.
 
@@ -42,11 +42,11 @@ For a model $M$ and witness circuit $M'$,
 let $R, C, F, P, I, L$ and their primed version be the formulas from above and the set of all inputs and latches in the respective circuit,
 $K$ is the intersection of latches and inputs between the two.
 The five checks are:
-| Reset      | R{K} \wedge C \Rightarrow R'{K} \wedge C'              |
-| Transition | F{K} \wedge C0 \wedge C1 \wedge C0' \Rightarrow F'{K} \wedge C1' |
-| Property   | (C \wedge C') \Rightarrow (P \Rightarrow P')                |
-| Base       | R' \wedge C' \Rightarrow P'                       |
-| Step       | P0' \wedge F' \wedge C0' \wedge C1' \Rightarrow P1'         |
+| Reset      | $R\{K\} \wedge C \Rightarrow R'\{K\} \wedge C'$              |
+| Transition | $F\{K\} \wedge C_0 \wedge C_1 \wedge C_0' \Rightarrow F'\{K\} \wedge C_1'$ |
+| Property   | $(C \wedge C') \Rightarrow (P \Rightarrow P')$                |
+| Base       | $R' \wedge C' \Rightarrow P'$                       |
+| Step       | $P_0' \wedge F' \wedge C_0' \wedge C_1' \Rightarrow P_1'$         |
 
 For a witness and model that pass the first three checks, the witness is said to simulate the model.
 The last two check the inductiveness of the property in the witness circuit.
@@ -83,11 +83,11 @@ For the same reason Certifaiger employs a number of heuristic to use as few quan
 
 The table below lists the relaxed versions of each check together with the maximum number of quantifier alternations that can be specified (/--qbf 2 2 1 0 1/ the same is achieved with just --qbf).
 
-| Reset      | 2 | R \wedge C \Rightarrow \exists X'\forall O.(R' \wedge C')                |
-| Transition | 2 | F \wedge C0 \wedge C1 \wedge C0' \Rightarrow \exists X1'\forall O1.(F' \wedge C1') |
-| Property   | 1 | C \wedge \neg P \Rightarrow \exists X'\forall O.(C' \wedge \neg P')            |
-| Base       | 0 | R' \wedge C' \Rightarrow P'                             |
-| Step       | 1 | \forall O.(P0' \vee \neg C0') \wedge C0' \wedge F' \wedge C1' \Rightarrow P1' |
+| Reset      | 2 | $R \wedge C \Rightarrow \exists X'\forall O.(R' \wedge C')$                      |
+| Transition | 2 | $F \wedge C_0 \wedge C_1 \wedge C_0' \Rightarrow \exists X_1'\forall O_1.(F' \wedge C_1')$ |
+| Property   | 1 | $C \wedge \neg P \Rightarrow \exists X'\forall O.(C' \wedge \neg P')$                  |
+| Base       | 0 | $R' \wedge C' \Rightarrow P'$                                   |
+| Step       | 1 | $\forall O.(P_0' \vee \neg C_0') \wedge C_0' \wedge F' \wedge C_1' \Rightarrow P_1'$  |
 
 Here $X$ refers to the parts of the witness circuit not in the model and $O$ refers to the set of /oracles/ discussed later. Before we need to discuss /stratified/ reset functions which enable the quantifier free version of the reset check.
 ** Stratified Reset
