@@ -1,14 +1,15 @@
+MAKEFLAGS += --no-print-directory
 all: build/Makefile
-	$(MAKE) -C build --no-print-directory
-qbf: add_qbf_dependency all
+	@cmake --build build --parallel
+	@cmake --install build --prefix .
+qbf: clean qbf_makefile all
+qbf_makefile:
+	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -DQBF=ON -B build
 build/Makefile: CMakeLists.txt
-	cmake -DCMAKE_BUILD_TYPE=Release -B build
-add_qbf_dependency:
-	cmake -DQBF=ON -DCMAKE_BUILD_TYPE=Release -B build
+	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build
 docker: clean
-	git submodule update --init --recursive
 	docker build -t certifaiger .
-	docker run certifaiger examples/01_model.aag examples/06_witness.aag
+	docker run --rm -it certifaiger examples/uniqueness_model.aag examples/uniqueness_witness.aag --qbf
 clean:
-	rm -rf build
-.PHONY: all qbf add_qbf_dependency docker clean
+	rm -rf build bin
+.PHONY: all qbf qbf_makefile docker clean

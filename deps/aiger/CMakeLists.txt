@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.10)
+project(aiger)
+add_library(aiger STATIC aiger.c)
+target_include_directories(aiger PUBLIC .)
+set_target_properties(aiger PROPERTIES PUBLIC_HEADER aiger.h)

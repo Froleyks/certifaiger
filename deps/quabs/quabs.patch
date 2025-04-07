@@ -1,6 +1,8 @@
---- CMakeLists.txt	2024-06-18 09:28:35.800749637 +0200
-+++ new_CMakeLists.txt	2024-06-18 09:28:31.389531696 +0200
-@@ -27,7 +27,7 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 0f9b1ce..149f627 100644
+--- a/libsolve/src/CMakeLists.txt
++++ b/libsolve/src/CMakeLists.txt
+@@ -27,7 +27,7 @@ include(ExternalProject)
  # cryptominisat
  ExternalProject_Add(cmsat
      GIT_REPOSITORY https://github.com/msoos/cryptominisat.git

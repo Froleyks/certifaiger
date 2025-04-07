@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-certifaiger="$build/certifaiger"
-sat_solver="$build/kissat/kissat"
-aigtocnf="$build/aiger/aigtocnf"
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+certifaiger="$bin"/certifaiger
+sat_solver="$bin"/kissat
+aigtocnf="$bin"/aigtocnf
 # non-stratified reset only
-qaiger2qcir="$build/quabs/qaiger2qcir"
-quabs="$build/quabs/quabs"
+qaiger2qcir="$bin"/qaiger2qcir
+quabs="$bin"/quabs
 for i in certifaiger sat_solver aigtocnf; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done

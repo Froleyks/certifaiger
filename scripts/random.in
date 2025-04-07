@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 FUZZER_OPTIONS='-2 -m -S -s'
 # FUZZER_OPTIONS='-2 -m -S'
-build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-BUGS="$build/bug"
-certified="$build/certified"
-aigfuzz="$build/aiger/aigfuzz"
-aigdd="$build/aiger/aigdd"
-aigtoaig="$build/aiger/aigtoaig"
-options="$build/options"
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+bugs="$(pwd)"/bugs
+options="$(pwd)"/options
+certified="$bin"/certified
+aigfuzz="$bin"/aigfuzz
+aigdd="$bin"/aigdd
+aigtoaig="$bin"/aigtoaig
 for i in certified aigfuzz aigdd aigtoaig; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 "$certified" >/dev/null || exit 1
 [ $# -lt 1 ] && echo "usage: $(basename "$0") <model checker> [<seed>]" && exit 0
-MC=$(realpath $1)
+MC="$1"
 [ $# -gt 1 ] && seed=$2
 [ -f "$options" ] && FUZZER_OPTIONS="$FUZZER_OPTIONS -r $options"
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
@@ -29,12 +29,12 @@ echo $(basename "$0"): $(head -n 1 "$mod")
 "$certified" --mc_time=60 "$MC" "$mod" && exit 0
 res=$?
 echo bug: $seed
-mkdir -p "$BUGS"
-big="$BUGS"/big-$seed.aig
-red="$BUGS"/red-$seed.aig
-aag="$BUGS"/aag-$seed.aag
+mkdir -p "$bugs"
+big="$bugs"/big-$seed.aig
+red="$bugs"/red-$seed.aig
+aag="$bugs"/aag-$seed.aag
 mv "$mod" "$big"
 "$aigdd" $big $red "$certified $MC"
 "$aigtoaig" $red $aag
-echo $(basename "$0"): reduced $(head -n 1 "$aag") "$(realpath $aag)"
+echo $(basename "$0"): reduced $(head -n 1 "$aag") "$aag"
 exit $res

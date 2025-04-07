@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-check_safe="$build"/check_safe
-check_unsafe="$build"/check_unsafe
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+check_safe="$bin"/check_safe
+check_unsafe="$bin"/check_unsafe
 for i in check_safe check_unsafe; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
     "${!i}" >/dev/null || exit

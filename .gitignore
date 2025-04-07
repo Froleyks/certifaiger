@@ -1,2 +1,5 @@
-/build/
-/.cache/
+build
+bin
+.cache
+bugs
+options

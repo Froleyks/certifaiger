@@ -148,22 +148,22 @@ struct InAIG {
   InAIG(const char *path) : aig(aiger_init()) {
     const char *err = aiger_open_and_read_from_file(aig, path);
     if (err) {
-      std::cerr << "certifaiger: parse error reading " << path << ": " << err
+      std::cerr << "Certifaiger: parse error reading " << path << ": " << err
                 << "\n";
       exit(1);
     }
     if (!inputs_latches_reencoded(aig)) {
-      std::cerr << "certifaiger: inputs and latches have to be reencoded even "
+      std::cerr << "Certifaiger: inputs and latches have to be reencoded even "
                    "in ASCII format "
                 << path << "\n";
       exit(2);
     }
     if (aig->num_justice + aig->num_fairness)
       std::cout
-          << "certifaiger: WARNING justice and fairness are not supported "
+          << "Certifaiger: WARNING justice and fairness are not supported "
           << path << "\n";
     if (aig->num_bad + aig->num_outputs > 1)
-      std::cout << "certifaiger: WARNING Multiple properties. Using "
+      std::cout << "Certifaiger: WARNING Multiple properties. Using "
                 << (aig->num_bad ? "bad" : "output") << "0 of " << path << "\n";
   }
   ~InAIG() { aiger_reset(aig); }

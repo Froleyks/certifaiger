@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-aigsim="$build/aiger/aigsim"
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+aigsim="$bin"/aigsim
 for i in aigsim; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done

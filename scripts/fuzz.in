@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 FAILURES=1 # number of failures before exit
-build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-BUGS="$build/bug"
-random="$build/random"
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+random="$bin"/random
 for i in random; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 "$random" >/dev/null || exit 1
 [ $# -lt 1 ] && echo "usage: $(basename "$0") <model checker>" && exit 0
-MC=$(realpath $1)
+MC="$1"
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM

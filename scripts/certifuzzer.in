@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-BUGS="$build/bug"
-fuzz="$build/fuzz"
-certified="$build/certified"
-status="$build/status"
-options="$build/options"
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+bugs="$(pwd)"/bugs
+options="$(pwd)"/options
+fuzz="$bin"/fuzz
+certified="$bin"/certified
+status="$bin"/status
 for i in fuzz certified status; do
   [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
@@ -14,28 +14,28 @@ cleanup() {
   echo
   jobs -rp | xargs -r kill
   wait
-  if ls "$BUGS"/aag-*.aag >/dev/null 2>&1; then
+  if ls "$bugs"/aag-*.aag >/dev/null 2>&1; then
     echo -e "\n$(basename "$0"): $(basename $MC) on shortes bug\n"
-    short=$(wc -l "$BUGS"/aag-*.aag | sort -n | head -n 1 | awk '{print $2}')
-    cp "$short" "$build"/bug.aag
-    "$certified" "$MC" "$build"/bug.aag "$build"/wit.aag
+    short=$(wc -l "$bugs"/aag-*.aag | sort -n | head -n 1 | awk '{print $2}')
+    cp "$short" "$bin"/bug.aag
+    "$certified" "$MC" "$bin"/bug.aag "$bin"/wit.aag
     echo
-    echo $(basename "$0"): "Found a bug of length" $(wc -l "$build"/bug.aag | awk '{print $1}'): $(head -n 1 "$build"/bug.aag)
-    echo $(basename "$0"): "with witness of length" $(wc -l "$build"/wit.aag | awk '{print $1}')
-    echo $(basename "$0"): "$build"/bug.aag
-    echo $(basename "$0"): "$build"/wit.aag
+    echo $(basename "$0"): "Found a bug of length" $(wc -l "$bin"/bug.aag | awk '{print $1}'): $(head -n 1 "$bin"/bug.aag)
+    echo $(basename "$0"): "with witness of length" $(wc -l "$bin"/wit.aag | awk '{print $1}')
+    echo $(basename "$0"): "$bin"/bug.aag
+    echo $(basename "$0"): "$bin"/wit.aag
   fi
   trap '' EXIT HUP INT QUIT TERM
   exit
 }
 trap 'cleanup' EXIT HUP INT QUIT TERM
-MC=$(realpath $1)
+MC="$1"
 n=${2:-8}
 echo $(basename "$0"): fuzzing $(basename "$MC") with $n thredas
-old_bugs=$(ls "$BUGS"/aag-*.aag 2>/dev/null | wc -l)
+old_bugs=$(ls "$bugs"/aag-*.aag 2>/dev/null | wc -l)
 if [ $old_bugs -gt 0 ]; then
   echo $(basename "$0"): "Warning: $old_bugs failure inducing inputs from previous runs found"
-  echo $(basename "$0"): "run rm -r $BUGS"
+  echo $(basename "$0"): "run rm -r $bugs"
 fi
 echo
 "$MC" --range >"$options" 2>/dev/null

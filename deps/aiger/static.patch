@@ -1,0 +1,109 @@
+diff --git a/makefile.in b/makefile.in
+index acddac2..56742e3 100644
+--- a/makefile.in
++++ b/makefile.in
+@@ -4,7 +4,7 @@ CC=@CC@
+ CFLAGS=@CFLAGS@
+ 
+ .c.o:
+-	$(CC) $(CFLAGS) -c $<
++	$(CC) $(CFLAGS) -static -c $<
+ 
+ OBJS= \
+ aiger.o \
+@@ -65,65 +65,65 @@ link:
+ 	done
+ 
+ aigand: aiger.o aigand.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigand.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigand.o aiger.o
+ aigbmc: aiger.o aigbmc.o makefile @AIGBMCODEPS@
+-	$(CC) $(CFLAGS) -o $@ aigbmc.o aiger.o @AIGBMCLIBS@
++	$(CC) $(CFLAGS) -static -o $@ aigbmc.o aiger.o @AIGBMCLIBS@
+ aigdd: aiger.o aigdd.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigdd.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigdd.o aiger.o
+ aigdep: aiger.o aigdep.o makefile @AIGDEPCODEPS@
+-	$(CC) $(CFLAGS) -o $@ aigdep.o aiger.o @AIGDEPLIBS@
++	$(CC) $(CFLAGS) -static -o $@ aigdep.o aiger.o @AIGDEPLIBS@
+ aigflip: aiger.o aigflip.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigflip.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigflip.o aiger.o
+ aigfuzz: aiger.o aigfuzz.o aigfuzzlayers.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigfuzz.o aigfuzzlayers.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigfuzz.o aigfuzzlayers.o aiger.o
+ aiginfo: aiger.o aiginfo.o makefile
+-	$(CC) $(CFLAGS) -o $@ aiginfo.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aiginfo.o aiger.o
+ aigjoin: aiger.o aigjoin.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigjoin.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigjoin.o aiger.o
+ aigmiter: aiger.o aigmiter.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigmiter.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigmiter.o aiger.o
+ aigmove: aiger.o aigmove.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigmove.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigmove.o aiger.o
+ aignm: aiger.o aignm.o makefile
+-	$(CC) $(CFLAGS) -o $@ aignm.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aignm.o aiger.o
+ aigor: aiger.o aigor.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigor.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigor.o aiger.o
+ aigreset: aiger.o aigreset.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigreset.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigreset.o aiger.o
+ aigselect: aiger.o aigselect.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigselect.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigselect.o aiger.o
+ aigsim: aiger.o aigsim.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigsim.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigsim.o aiger.o
+ aigstrip: aiger.o aigstrip.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigstrip.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigstrip.o aiger.o
+ aigsplit: aiger.o aigsplit.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigsplit.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigsplit.o aiger.o
+ aigtoaig: aiger.o aigtoaig.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigtoaig.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigtoaig.o aiger.o
+ aigtoblif: aiger.o aigtoblif.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigtoblif.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigtoblif.o aiger.o
+ aigtocnf: aiger.o aigtocnf.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigtocnf.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigtocnf.o aiger.o
+ aigtobtor: aiger.o aigtobtor.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigtobtor.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigtobtor.o aiger.o
+ aigtodot: aiger.o aigtodot.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigtodot.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigtodot.o aiger.o
+ aigtosmv: aiger.o aigtosmv.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigtosmv.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ aigtosmv.o aiger.o
+ andtoaig: aiger.o andtoaig.o makefile
+-	$(CC) $(CFLAGS) -o $@ andtoaig.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ andtoaig.o aiger.o
+ aigunconstraint: aiger.o aigunconstraint.o simpaig.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigunconstraint.o aiger.o simpaig.o
++	$(CC) $(CFLAGS) -static -o $@ aigunconstraint.o aiger.o simpaig.o
+ aigunroll: aiger.o aigunroll.o simpaig.o makefile
+-	$(CC) $(CFLAGS) -o $@ aigunroll.o aiger.o simpaig.o
++	$(CC) $(CFLAGS) -static -o $@ aigunroll.o aiger.o simpaig.o
+ bliftoaig: aiger.o bliftoaig.o makefile
+-	$(CC) $(CFLAGS) -o $@ bliftoaig.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ bliftoaig.o aiger.o
+ smvtoaig: aiger.o smvtoaig.o makefile
+-	$(CC) $(CFLAGS) -o $@ smvtoaig.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ smvtoaig.o aiger.o
+ soltostim: aiger.o soltostim.o makefile
+-	$(CC) $(CFLAGS) -o $@ soltostim.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ soltostim.o aiger.o
+ wrapstim: aiger.o wrapstim.o makefile
+-	$(CC) $(CFLAGS) -o $@ wrapstim.o aiger.o
++	$(CC) $(CFLAGS) -static -o $@ wrapstim.o aiger.o
+ 
+ aigbmc.o: aiger.h aigbmc.c makefile @AIGBMCHDEPS@
+ 	$(CC) @AIGBMCFLAGS@ -c aigbmc.c

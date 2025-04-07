@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-build="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-check="$build/check"
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+check="$bin"/check
 for i in check; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
@@ -14,7 +14,7 @@ if [[ $1 =~ --mc_time=([0-9]+) ]]; then
     shift 1
 fi
 MC="$1"
-MODEL=$(realpath $2)
+MODEL="$2"
 echo $(basename "$0"): running "$MC" on "$MODEL"
 WIT=$TMP/wit_$(basename $MODEL)
 if [[ $# -ge 3 && $3 != -* ]]; then

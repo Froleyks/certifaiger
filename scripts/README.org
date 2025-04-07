@@ -1,5 +1,5 @@
 Don't execute these scripts.
-They are copied to the build directory by cmake, run them from there.
+They are copied to the bin directory by cmake, run them from there.
 
 The scripts (in increasing order of specificity to my workflow):
 - check <model> <witness>
