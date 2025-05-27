@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-check_safe="$bin"/check_safe
-check_unsafe="$bin"/check_unsafe
-for i in check_safe check_unsafe; do
+check_unsat="$bin"/check_unsat
+check_sat="$bin"/check_sat
+for i in check_unsat check_sat; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
     "${!i}" >/dev/null || exit
 done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <witness>" && exit 0
 if [[ $(head -1 "$2") == "1" ]]; then
    echo $(basename "$0"): unsafe
-   $check_unsafe "$@" || exit 1
+   $check_sat "$@" || exit 1
 else
    echo $(basename "$0"): safe
-   $check_safe "$@" || exit 1
+   $check_unsat "$@" || exit 1
 fi
 echo $(basename "$0"): valid witness

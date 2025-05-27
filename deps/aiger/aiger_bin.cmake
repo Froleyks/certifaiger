@@ -8,17 +8,13 @@ endif()
 
 ExternalProject_Add(
   aiger_tools
-  # GIT_REPOSITORY https://github.com/arminbiere/aiger
-  # This one support option fuzzing
-  GIT_REPOSITORY https://github.com/froleyks/aiger
+  GIT_REPOSITORY https://github.com/arminbiere/aiger
+  GIT_TAG development
   BUILD_IN_SOURCE 1
   UPDATE_COMMAND ""
-  PATCH_COMMAND git apply --reverse ${patch} || true
-        COMMAND ${AIGER_TOOLS_PATCH_COMMAND}
-  CONFIGURE_COMMAND ./configure.sh
+  CONFIGURE_COMMAND ./configure.sh -static
   BUILD_COMMAND make -j ${AIGER_TOOLS}
   INSTALL_COMMAND cp ${AIGER_TOOLS} ${CMAKE_CURRENT_BINARY_DIR} && make clean)
-
 foreach(tool IN LISTS AIGER_TOOLS)
   install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${tool} TYPE BIN)
 endforeach()

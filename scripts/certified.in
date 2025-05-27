@@ -1,35 +1,52 @@
 #!/usr/bin/env bash
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-check="$bin"/check
-for i in check; do
+check_sat="$bin"/check_sat
+check_unsat="$bin"/check_unsat
+for i in check_sat check_unsat; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
-"$check" >/dev/null || exit 1
+"$check_sat" >/dev/null || exit 1
+"$check_unsat" >/dev/null || exit 1
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model checker> <model> [--mc_time=<limit>] [<model checker args>]" && exit 0
+
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf "${TMP}"; exit' EXIT HUP INT QUIT TERM
+
 if [[ $1 =~ --mc_time=([0-9]+) ]]; then
     limit="timeout ${BASH_REMATCH[1]} "
     shift 1
 fi
 MC="$1"
 MODEL="$2"
-echo $(basename "$0"): running "$MC" on "$MODEL"
-WIT=$TMP/wit_$(basename $MODEL)
+NAME=$(basename "$MODEL" | sed 's/\.[^.]*$//')
 if [[ $# -ge 3 && $3 != -* ]]; then
-    WIT="$3"
-    echo $(basename "$0"): writing "$WIT"
+    NAME="$3"
+    echo $(basename "$0"): writing witness to "$NAME"
     shift
 fi
+SAT=$TMP/${NAME}.sat
+UNSAT=$TMP/${NAME}.unsat.aig
+LOG=$TMP/${NAME}.log
+
 shift 2
-$limit $MC "$MODEL" "$WIT" "$WIT" "$@"
+echo $(basename "$0"): running "$MC" on "$MODEL"
+$limit $MC "$MODEL" "$SAT" "$UNSAT" "$@" >"$LOG" 2>&1
 res=$?
 echo $(basename "$0"): model checker exit code $res
 if [ $res -eq 124 ]; then
     echo $(basename "$0"): model checker timeout
     exit 0
 fi
-"$check" "$MODEL" "$WIT"
-res=$?
-exit $res
+
+# Determine result from log
+if grep -q "RESULT: SAT" "$LOG"; then
+    echo $(basename "$0"): Checking SAT
+    "$check_sat" "$MODEL" "$SAT" || exit $?
+elif grep -q "RESULT: UNSAT" "$LOG"; then
+    echo $(basename "$0"): Checking UNSAT
+    "$check_unsat" "$MODEL" "$UNSAT" || exit $?
+else
+    echo $(basename "$0"): Model checker did not produce a recognizable result
+    exit 1
+fi
