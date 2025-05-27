@@ -20,19 +20,24 @@ fi
 MC="$1"
 MODEL="$2"
 NAME=$(basename "$MODEL" | sed 's/\.[^.]*$//')
-if [[ $# -ge 3 && $3 != -* ]]; then
-    NAME="$3"
-    echo $(basename "$0"): writing witness to "$NAME"
-    shift
-fi
 SAT=$TMP/${NAME}.sat
 UNSAT=$TMP/${NAME}.unsat.aig
+if [[ $# -ge 3 && $3 != -* ]]; then
+    SAT="$3"
+    UNSAT="$3"
+    shift
+fi
+if [[ $# -ge 4 && $3 != -* ]]; then
+    UNSAT="$4"
+    shift
+fi
+echo $(basename "$0"): writing witness to "$SAT" and "$UNSAT"
 LOG=$TMP/${NAME}.log
 
 shift 2
 echo $(basename "$0"): running "$MC" on "$MODEL"
-$limit $MC "$MODEL" "$SAT" "$UNSAT" "$@" >"$LOG" 2>&1
-res=$?
+$limit $MC "$MODEL" "$SAT" "$UNSAT" "$@" | tee "$LOG"
+res=${PIPESTATUS[0]}
 echo $(basename "$0"): model checker exit code $res
 if [ $res -eq 124 ]; then
     echo $(basename "$0"): model checker timeout
@@ -42,11 +47,14 @@ fi
 # Determine result from log
 if grep -q "RESULT: SAT" "$LOG"; then
     echo $(basename "$0"): Checking SAT
-    "$check_sat" "$MODEL" "$SAT" || exit $?
+    "$check_sat" "$MODEL" "$SAT"
+    res=$?
 elif grep -q "RESULT: UNSAT" "$LOG"; then
     echo $(basename "$0"): Checking UNSAT
-    "$check_unsat" "$MODEL" "$UNSAT" || exit $?
+    "$check_unsat" "$MODEL" "$UNSAT"
+    res=$?
 else
     echo $(basename "$0"): Model checker did not produce a recognizable result
     exit 1
 fi
+exit $res

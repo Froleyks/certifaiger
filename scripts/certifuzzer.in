@@ -17,13 +17,13 @@ cleanup() {
   if ls "$bugs"/aag-*.aag >/dev/null 2>&1; then
     echo -e "\n$(basename "$0"): $(basename $MC) on shortes bug\n"
     short=$(wc -l "$bugs"/aag-*.aag | sort -n | head -n 1 | awk '{print $2}')
-    cp "$short" "$bin"/bug.aag
-    "$certified" "$MC" "$bin"/bug.aag "$bin"/wit.aag
+    cp "$short" bug.aag
+    "$certified" "$MC" bug.aag wit.aag
     echo
-    echo $(basename "$0"): "Found a bug of length" $(wc -l "$bin"/bug.aag | awk '{print $1}'): $(head -n 1 "$bin"/bug.aag)
-    echo $(basename "$0"): "with witness of length" $(wc -l "$bin"/wit.aag | awk '{print $1}')
-    echo $(basename "$0"): "$bin"/bug.aag
-    echo $(basename "$0"): "$bin"/wit.aag
+    echo $(basename "$0"): "Found a bug of length" $(wc -l bug.aag | awk '{print $1}'): $(head -n 1 "$(pwd)"/bug.aag)
+    echo $(basename "$0"): "with witness of length" $(wc -l wit.aag | awk '{print $1}')
+    echo $(basename "$0"): "$(pwd)"/bug.aag
+    echo $(basename "$0"): "$(pwd)"/wit.aag
   fi
   trap '' EXIT HUP INT QUIT TERM
   exit
