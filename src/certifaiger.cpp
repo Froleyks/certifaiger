@@ -123,7 +123,9 @@ void add_quantifiers(aiger *aig, auto &&universal, auto &&existential) {
   if (universal.empty() && existential.empty()) return;
 
   char buffer[80];
-  std::snprintf(buffer, sizeof(buffer), "Quantified universal %zu existential %zu", universal.size(), existential.size());
+  std::snprintf(buffer, sizeof(buffer),
+                "Quantified universal %zu existential %zu", universal.size(),
+                existential.size());
   aiger_add_comment(aig, buffer);
 
   // quantification does not implicitly default to 0 in qaiger2qcir
@@ -207,40 +209,34 @@ std::vector<char> out_cone(aiger *aig, const std::vector<unsigned> &gates) {
 }
 
 // Checks if the circuit is stratified (no cyclic dependencies in the reset
-// definition). Assumes the latches are in reversd topological order.
+// definition) using Kahn. In addition to ands, latches have an edge to their
+// reset.
 bool stratified_reset(aiger *aig) {
-  std::vector<unsigned> s;
-  std::vector<unsigned> visted(size(aig));
-  unsigned time{1};
-  auto visit = [&visted, &time](unsigned l) {
-    visted.at(l) = time;
-    visted.at(aiger_not(l)) = time;
+  const unsigned n = aig->maxvar + 1;
+  std::vector<unsigned> in_degree(n);
+  std::vector<unsigned> stack;
+  stack.reserve(n);
+  auto inc = [&in_degree](unsigned l) { in_degree.at(l >> 1)++; };
+  auto dec = [&in_degree, &stack](unsigned l) {
+    if (!--in_degree.at(l >> 1)) stack.push_back(l);
   };
-  visit(aiger_false);
-  for (unsigned l : inputs(aig) | lits)
-    visit(l);
-  for (unsigned l : latches(aig) | uninitialized | lits)
-    visit(l);
-  for (auto [l, r] : latches(aig) | resets) {
-    time++;
-    s.push_back(r);
-    while (!s.empty()) {
-      unsigned l = s.back();
-      s.pop_back();
-      if (visted.at(l) < time) continue;
-      if (visted.at(l) == time) return false;
-      visit(l);
-      aiger_and *a = aiger_is_and(aig, l);
-      if (a) {
-        s.push_back(a->rhs0);
-        s.push_back(a->rhs1);
-        continue;
-      }
-      return false;
-    }
-    visit(l);
+  for (auto [_, l, r] : ands(aig))
+    inc(l), inc(r);
+  for (auto [_, r] : latches(aig) | initialized | resets)
+    inc(r);
+  for (unsigned i = 0; i < n; ++i)
+    if (!in_degree[i]) stack.push_back(i << 1);
+  unsigned visited = 0;
+  while (!stack.empty()) {
+    visited++;
+    unsigned l{stack.back()};
+    stack.pop_back();
+    if (aiger_and *a = aiger_is_and(aig, l))
+      dec(a->rhs0), dec(a->rhs1);
+    else if (aiger_symbol *a = aiger_is_latch(aig, l))
+      dec(a->reset);
   }
-  return true;
+  return visited == n;
 }
 
 // QBF checks are very expensive. This function determines which checks actually
@@ -254,8 +250,8 @@ void reduce_quantifiers(
            "used\n";
 
   auto seconds = std::views::transform([](const auto &p) { return p.second; });
-  auto intersects = [](const auto &gats, const auto &flags) {
-    return std::ranges::any_of(gats,
+  auto intersects = [](const auto &gates, const auto &flags) {
+    return std::ranges::any_of(gates,
                                [&flags](const auto &l) { return flags[l]; });
   };
   auto extended_cone = out_cone(witness, extended);
