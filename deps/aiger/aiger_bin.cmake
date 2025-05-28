@@ -1,10 +1,4 @@
 set(AIGER_TOOLS aigtocnf aigsim aigfuzz aigdd aigtoaig aigfuzz)
-set(patch "${CMAKE_CURRENT_LIST_DIR}/static.patch")
-if(STATIC)
-  set(AIGER_TOOLS_PATCH_COMMAND git apply ${patch})
-else()
-  set(AIGER_TOOLS_PATCH_COMMAND "")
-endif()
 
 ExternalProject_Add(
   aiger_tools

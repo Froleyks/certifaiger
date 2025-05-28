@@ -455,7 +455,7 @@ void check_base(aiger *check, const aiger *witness) {
 
 void check_step(aiger *check, const aiger *witness,
                 const std::vector<unsigned> &oracle) {
-  // ∀O.(P0’ ∨ ¬C0’) ∧ C0’ ∧ F’ ∧ C1’ ⇒ P1’
+  // ∀O1 P0' ^ F' ^ C0' ^ C1' ⇒ P1'
   auto [current_m, next_m] = map_concatenated_circuits(check, witness, witness);
   add_quantifiers(check, oracle | map_at(current_m));
   std::vector<unsigned> latch_transition;
@@ -470,7 +470,7 @@ void check_step(aiger *check, const aiger *witness,
   unsigned bad = conj(check, {aiger_not(current_m.at(output(witness))),
                               witness_transition, current_constrained,
                               next_constrained, next_m.at(output(witness))});
-  aiger_add_output(check, bad, "P0' ^ C0' ^ F' ^ C1' ^ -P1'");
+  aiger_add_output(check, bad, "P0' ^ F' ^ C0' ^ C1' ^ -P1'");
 }
 
 int main(int argc, char *argv[]) {
