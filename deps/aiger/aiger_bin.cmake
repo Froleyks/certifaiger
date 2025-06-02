@@ -3,7 +3,6 @@ set(AIGER_TOOLS aigtocnf aigsim aigfuzz aigdd aigtoaig aigfuzz)
 ExternalProject_Add(
   aiger_tools
   GIT_REPOSITORY https://github.com/arminbiere/aiger
-  GIT_TAG development
   BUILD_IN_SOURCE 1
   UPDATE_COMMAND ""
   CONFIGURE_COMMAND ./configure.sh -static
