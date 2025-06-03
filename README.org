@@ -112,7 +112,7 @@ i1 oracle
 i2 oracle
 #+end_example
 
-The only model checking technique that requires oracles we have encountered so far is k-induction under uniqueness constants.
+The only model checking technique that requires oracles we have encountered so far is k-induction under uniqueness constraints.
 For a $k$-inductive model $M=(I,L,R,F,P,C)$, a valid witness $W=(I',O',L,R,F,P',C')$ may be constructed with I' = I^{0} \cup \dots \cup I^{k-1} where I^{0} = I, O' = I' \ I;
 P' = \wedge_{i\in[0,k)} P_{i}, and C' = \wedge_{i\in[0,k)} C_{i}.
 A witness resulting form this construction can be found in the examples directory.

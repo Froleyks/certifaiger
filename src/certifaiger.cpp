@@ -174,18 +174,18 @@ auto shared_inputs_latches(const aiger *model, const aiger *witness) {
     for (unsigned i = 0; i < m; ++i)
       shared.emplace_back(model->latches[i].lit, witness->latches[i].lit);
     extended.clear();
-    for (unsigned i = n; i < model->num_inputs; ++i)
-      extended.push_back(model->inputs[i].lit);
-    for (unsigned i = m; i < model->num_latches; ++i)
-      extended.push_back(model->latches[i].lit);
+    for (unsigned i = n; i < witness->num_inputs; ++i)
+      extended.push_back(witness->inputs[i].lit);
+    for (unsigned i = m; i < witness->num_latches; ++i)
+      extended.push_back(witness->latches[i].lit);
   }
   return std::tuple{shared, extended};
 }
 
 // Oracles extend the witness format by enabling more flexible reset,
-// transition, and step checks. The only model checking technique requiring this
-// extension we have found so far are uniqueness constraints in the context of
-// k-induction.
+// transition, and step checks. The only model checking technique requiring
+// this extension we have found so far are uniqueness constraints in the
+// context of k-induction.
 std::vector<unsigned> oracle_inputs(const aiger *witness) {
   std::vector<unsigned> oracles;
   for (const auto &input : inputs(witness))
@@ -239,8 +239,8 @@ bool stratified_reset(aiger *aig) {
   return visited == n;
 }
 
-// QBF checks are very expensive. This function determines which checks actually
-// require quantification using conservative heuristics.
+// QBF checks are very expensive. This function determines which checks
+// actually require quantification using conservative heuristics.
 void reduce_quantifiers(
     aiger *witness, const std::vector<std::pair<unsigned, unsigned>> &shared,
     const std::vector<unsigned> &extended, const std::vector<unsigned> &oracles,
@@ -485,10 +485,10 @@ int main(int argc, char *argv[]) {
 
   const std::vector<unsigned> none;
   check_reset(*OutAIG(checks[0]), *model, *witness, shared,
-              quantifiers[0] ? extended : none,
+              quantifiers[0] > 0 ? extended : none,
               quantifiers[0] > 1 ? oracles : none);
   check_transition(*OutAIG(checks[1]), *model, *witness, shared,
-                   quantifiers[1] ? extended : none,
+                   quantifiers[1] > 0 ? extended : none,
                    quantifiers[1] > 1 ? oracles : none);
   check_property(*OutAIG(checks[2]), *model, *witness, shared,
                  quantifiers[2] ? extended : none);
