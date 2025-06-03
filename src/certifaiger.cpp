@@ -165,6 +165,43 @@ auto shared_inputs_latches(const aiger *model, const aiger *witness) {
     else
       extended.push_back(l);
   }
+
+  if (shared.empty()) {
+    MSG << "No witness mapping found in symbol table\n";
+    unsigned num_mapped{}, line{}, w{}, m{};
+
+    for (char **p = witness->comments; *p; p++) {
+      const char *c = *p;
+      if (num_mapped) {
+        num_mapped--;
+        auto [end, err_w] = std::from_chars(c, c + strlen(c), w);
+        if (err_w != std::errc()) {
+          std::cerr << "Invalid witness gate at index " << line << ": " << c
+                    << "\n";
+          exit(1);
+        }
+        auto [_, err_m] = std::from_chars(end + 1, c + strlen(c), m);
+        if (err_m != std::errc()) {
+          std::cerr << "Invalid model gate at index " << line << ": " << c << "\n";
+          exit(1);
+        }
+        shared.emplace_back(m, w);
+        line++;
+      }
+      if (strncmp(c, "MAPPING", 7)) continue;
+      auto [_, err] = std::from_chars(c + 8, c + strlen(c), num_mapped);
+      if (err != std::errc()) {
+        std::cerr << "MAPPING requires number of mapped gates";
+        exit(1);
+      }
+      MSG << "Found mapping for " << num_mapped << " literals\n";
+    }
+    extended.clear();
+    MSG << "Warning: Quantification not effective with gate mapping.\n";
+    // TODO All inputs and latches not in the in-cone of a mapped gate should be
+    // extensions.
+  }
+
   if (shared.empty()) {
     MSG << "No witness mapping found, using default\n";
     const unsigned n = std::min(model->num_inputs, witness->num_inputs);
