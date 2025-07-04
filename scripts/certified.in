@@ -57,5 +57,4 @@ else
     echo $(basename "$0"): Model checker did not produce a recognizable result
     exit 1
 fi
-echo check: valid witness
 exit $res
