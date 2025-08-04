@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(certifaiger VERSION 7.1.3)
+project(certifaiger VERSION 8.0.0)
 set(CMAKE_CXX_STANDARD 23)
 file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)
 file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
@@ -9,7 +9,6 @@ option(LTO "Enable Link-Time Optimization" ON)
 option(STATIC "Build static binary" OFF)
 option(SAT "Build SAT solver (kissat)" ON)
 option(CHECK "Setup checking and fuzzing" ON)
-option(QBF "Build QBF solver (non-stratified only)" OFF)
 
 include(util.cmake)
 include(deps/aiger/aiger_lib.cmake)
@@ -27,9 +26,6 @@ if(CHECK)
     fuzz
     status
     certifuzzer)
-endif()
-if(QBF)
-  include(deps/quabs/quabs_bin.cmake)
 endif()
 
 add_executable(certifaiger ${sources})

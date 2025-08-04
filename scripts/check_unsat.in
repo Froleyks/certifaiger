@@ -3,9 +3,6 @@ bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 certifaiger="$bin"/certifaiger
 sat_solver="$bin"/kissat
 aigtocnf="$bin"/aigtocnf
-# non-stratified reset only
-qaiger2qcir="$bin"/qaiger2qcir
-quabs="$bin"/quabs
 for i in certifaiger sat_solver aigtocnf; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
@@ -13,66 +10,21 @@ done
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
-CHECKS=(reset transition property base step)
-AIGS=()
-for check in "${CHECKS[@]}"; do
-    AIGS+=("${TMP}/$check.aig")
-done
 model="$1"
 witness="$2"
+check="${model##*/}"
+check="${check%.*}"
+check="${TMP}/check_${check}"
 shift 2
 echo $(basename "$0"): Checking witness circuit "$witness"
-$certifaiger "$model" "$witness" "${AIGS[@]}" "$@"
+$certifaiger "$model" "$witness" "$check".aig "$@"
 certifaiger_exit=$?
 [ $certifaiger_exit -ne 0 ] && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit)" >&2 && exit 1
 echo
 
-ALL_SUCCESS=true
-
-drop_check() {
-    local new_checks=()
-    for item in "${CHECKS[@]}"; do
-        if [ "$item" != "$1" ]; then
-            new_checks+=("$item")
-        fi
-    done
-    CHECKS=("${new_checks[@]}")
-}
-
-sat() {
-    echo Checking $1
-    $aigtocnf "${TMP}/$1.aig" "${TMP}/$1.cnf"
-    $sat_solver --quiet "${TMP}/$1.cnf"
-    if [ $? -ne 20 ]; then
-        ALL_SUCCESS=false
-        echo "Error: $1 check failed"
-    fi
-    echo
-}
-
-qbf() {
-    for i in qaiger2qcir quabs; do
-        [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
-    done
-    drop_check $1
-    echo Checking $1 with quantification
-    $qaiger2qcir "${TMP}/$1.aig" >"${TMP}/$1.qcir"
-    $quabs "${TMP}/$1.qcir"
-    if [ $? -ne 20 ]; then
-        ALL_SUCCESS=false
-        echo "Error: $1 check failed"
-    fi
-    echo
-}
-
-for check in "${CHECKS[@]}"; do
-    if grep -q 'Quantified universal' "${TMP}/$check.aig"; then
-        qbf $check
-    else
-        sat $check
-    fi
-done
-if $ALL_SUCCESS; then
+$aigtocnf "$check".aig "$check".cnf
+$sat_solver --quiet "$check".cnf
+if [ $? -eq 20 ]; then
     echo $(basename "$0"): Certificate check passed.
     exit 0
 else
