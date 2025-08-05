@@ -11,6 +11,11 @@ done
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
+SEQUENTIAL=0
+if [[ $1 = "--seq" ]]; then
+    SEQUENTIAL=1
+    shift 1
+fi
 model="$1"
 witness="$2"
 check="${model##*/}"
@@ -29,36 +34,36 @@ $aigsplit "$check".aig split_ || {
     exit 1
 }
 
+sat() {
+    echo Checking $1
+    $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
+    $sat_solver --quiet "${TMP}/$2.cnf"
+    if [ $? -ne 20 ]; then
+        echo "Error: $1 check failed"
+        exit 1
+    fi
+}
+
 CHECKS=(reset transition property base step)
 PIDS=()
 for i in {0..4}; do
-    aig="split_o$i"
     name="${CHECKS[i]}"
-    echo "Checking $name"
+    aig="split_o$i.aig"
     if [ "$SEQUENTIAL" -eq 1 ]; then
-        $sat_solver --quiet "${TMP}/${aig}.cnf"
-        if [ $? -ne 20 ]; then
-            echo "Error: ${name} check failed"
+        sat "$name" "$aig" || {
             echo $(basename "$0"): Certificate check failed.
             exit 1
-        fi
+        }
     else
-        (
-            $sat_solver --quiet "${TMP}/$1.cnf"
-            if [ $? -ne 0 ]; then
-                echo "Error: $1 check failed"
-                exit 1
-            fi
-        ) &
+        (sat "$name" "$aig") &
         PIDS+=($!)
     fi
 done
 for pid in "${PIDS[@]}"; do
-    wait "$pid"
-    if [ $? -ne 20 ]; then
+    wait "$pid" || {
         echo $(basename "$0"): Certificate check failed.
         exit 1
-    fi
+    }
 done
 
 echo "$(basename "$0"): Certificate check passed."
