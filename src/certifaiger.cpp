@@ -167,6 +167,7 @@ int main(int argc, char *argv[]) {
   auto shared = get_shared(model, witness);
   auto [witness_map, model_map, maxvar] =
       encode_unrolling(shared, model, witness, check);
+
   auto gate = [&check, &maxvar](unsigned x, unsigned y) {
     assert(maxvar % 2 == 0);
     aiger_add_and(check, maxvar, x, y);
@@ -240,28 +241,28 @@ int main(int argc, char *argv[]) {
   unsigned guard_reset = gate(R0K, C0);
   unsigned target_reset = gate(R0KP, C0P);
   unsigned reset = imply(guard_reset, target_reset);
+  aiger_add_output(check, aiger_not(reset), "reset");
 
   // Transition: F01K ∧ C0 ∧ C1 ∧ C0P → F01KP ∧ C1P
   unsigned guard_trans = gate(gate(gate(F01K, C0), C1), C0P);
   unsigned target_trans = gate(F01KP, C1P);
   unsigned transition = imply(guard_trans, target_trans);
+  aiger_add_output(check, aiger_not(transition), "transition");
 
   // Property: (C0 ∧ C0P ∧ P0P) → P0
   unsigned guard_prop = gate(gate(C0, C0P), P0P);
   unsigned property = imply(guard_prop, P0);
+  aiger_add_output(check, aiger_not(property), "property");
 
   // Base: R0P ∧ C0P → P0P
   unsigned guard_base = gate(R0P, C0P);
   unsigned base = imply(guard_base, P0P);
+  aiger_add_output(check, aiger_not(base), "base");
 
   // Step: P0P ∧ F01P ∧ C0P ∧ C1P → P1P
   unsigned guard_step = gate(gate(gate(P0P, F01P), C0P), C1P);
   unsigned step = imply(guard_step, P1P);
-
-  unsigned all_checks =
-      gate(gate(gate(gate(reset, transition), property), base), step);
-  unsigned final_bad = aiger_not(all_checks);
-  aiger_add_output(check, final_bad, "certification_fail");
+  aiger_add_output(check, aiger_not(step), "step");
 
   aiger_open_and_write_to_file(check, check_path);
   aiger_reset(check);
