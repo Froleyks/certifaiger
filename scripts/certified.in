@@ -12,7 +12,11 @@ done
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf "${TMP}"; exit' EXIT HUP INT QUIT TERM
-
+SEQUENTIAL=""
+if [[ $1 = "--seq" ]]; then
+    SEQUENTIAL="--seq"
+    shift 1
+fi
 if [[ $1 =~ --mc_time=([0-9]+) ]]; then
     limit="timeout ${BASH_REMATCH[1]} "
     shift 1
@@ -51,7 +55,7 @@ if grep -q "RESULT: SAT" "$LOG"; then
     res=$?
 elif grep -q "RESULT: UNSAT" "$LOG"; then
     echo $(basename "$0"): Checking UNSAT
-    "$check_unsat" "$MODEL" "$UNSAT"
+    "$check_unsat" $SEQUENTIAL "$MODEL" "$UNSAT"
     res=$?
 else
     echo $(basename "$0"): Model checker did not produce a recognizable result

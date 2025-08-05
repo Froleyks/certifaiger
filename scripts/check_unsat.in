@@ -18,34 +18,28 @@ AIGS=()
 for check in "${CHECKS[@]}"; do
     AIGS+=("${TMP}/$check.aig")
 done
+SEQUENTIAL=0
+if [[ $1 = "--seq" ]]; then
+    SEQUENTIAL=1
+    shift 1
+fi
 model="$1"
 witness="$2"
 shift 2
+
 echo $(basename "$0"): Checking witness circuit "$witness"
 $certifaiger "$model" "$witness" "${AIGS[@]}" "$@"
 certifaiger_exit=$?
 [ $certifaiger_exit -ne 0 ] && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit)" >&2 && exit 1
 echo
 
-ALL_SUCCESS=true
-
-drop_check() {
-    local new_checks=()
-    for item in "${CHECKS[@]}"; do
-        if [ "$item" != "$1" ]; then
-            new_checks+=("$item")
-        fi
-    done
-    CHECKS=("${new_checks[@]}")
-}
-
 sat() {
     echo Checking $1
     $aigtocnf "${TMP}/$1.aig" "${TMP}/$1.cnf"
     $sat_solver --quiet "${TMP}/$1.cnf"
     if [ $? -ne 20 ]; then
-        ALL_SUCCESS=false
         echo "Error: $1 check failed"
+        exit 1
     fi
     echo
 }
@@ -54,28 +48,50 @@ qbf() {
     for i in qaiger2qcir quabs; do
         [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
     done
-    drop_check $1
     echo Checking $1 with quantification
     $qaiger2qcir "${TMP}/$1.aig" >"${TMP}/$1.qcir"
     $quabs "${TMP}/$1.qcir"
     if [ $? -ne 20 ]; then
-        ALL_SUCCESS=false
         echo "Error: $1 check failed"
+        exit 1
     fi
     echo
 }
 
-for check in "${CHECKS[@]}"; do
-    if grep -q 'Quantified universal' "${TMP}/$check.aig"; then
-        qbf $check
-    else
-        sat $check
-    fi
-done
+STATUSES=()
+if [ "$SEQUENTIAL" -eq 1 ]; then
+    echo "Running checks sequentially..."
+    for check in "${CHECKS[@]}"; do
+        if grep -q 'Quantified universal' "${TMP}/$check.aig"; then
+            qbf "$check"
+        else
+            sat "$check"
+        fi
+        STATUSES+=($?)
+    done
+else
+    echo "Running checks in parallel..."
+    PIDS=()
+    for check in "${CHECKS[@]}"; do
+        (
+            if grep -q 'Quantified universal' "${TMP}/$check.aig"; then
+                qbf "$check"
+            else
+                sat "$check"
+            fi
+        ) &
+        PIDS+=($!)
+    done
+    for pid in "${PIDS[@]}"; do
+        wait "$pid"
+        STATUSES+=($?)
+    done
+fi
+
 if $ALL_SUCCESS; then
-    echo $(basename "$0"): Certificate check passed.
+    echo "$(basename "$0"): Certificate check passed."
     exit 0
 else
-    echo $(basename "$0"): Certificate check failed.
+    echo "$(basename "$0"): Certificate check failed."
     exit 1
 fi
