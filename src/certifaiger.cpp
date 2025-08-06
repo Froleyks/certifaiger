@@ -162,25 +162,12 @@ auto encode_unrolling(const std::vector<std::pair<unsigned, unsigned>> &shared,
   return std::tuple(witness_map, model_map, maxvar);
 }
 
-int main(int argc, char *argv[]) {
-  auto [model, witness, check, check_path] = initialize(argc, argv);
-  auto shared = get_shared(model, witness);
-  auto [witness_map, model_map, maxvar] =
-      encode_unrolling(shared, model, witness, check);
-
-  auto gate = [&check, &maxvar](unsigned x, unsigned y) {
-    assert(maxvar % 2 == 0);
-    aiger_add_and(check, maxvar, x, y);
-    maxvar += 2;
-    return maxvar - 2;
-  };
-  auto imply = [&check, &maxvar, &gate](unsigned x, unsigned y) {
-    return aiger_not(gate(x, aiger_not(y)));
-  };
-  auto equivalent = [&](unsigned x, unsigned y) {
-    return gate(imply(x, y), imply(y, x));
-  };
-
+auto encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
+                       const aiger *witness,
+                       const std::array<std::vector<unsigned>, 2> &witness_map,
+                       const aiger *model,
+                       const std::array<std::vector<unsigned>, 2> &model_map,
+                       auto gate) {
   std::vector<aiger_symbol *> K, KP;
   K.reserve(shared.size());
   KP.reserve(shared.size());
@@ -188,6 +175,11 @@ int main(int argc, char *argv[]) {
     if (auto *l = aiger_is_latch(model, m)) K.push_back(l);
     if (auto *l = aiger_is_latch(witness, w)) KP.push_back(l);
   }
+
+  auto equivalent = [&](unsigned x, unsigned y) {
+    return gate(aiger_not(gate(x, aiger_not(y))),
+                aiger_not(gate(y, aiger_not(x))));
+  };
 
   unsigned R0K{1}, R0KP{1}, R0P{1};
   for (auto l : K)
@@ -236,6 +228,28 @@ int main(int argc, char *argv[]) {
     P0P = gate(P0P, aiger_not(witness_map[0][witness->outputs[j].lit]));
     P1P = gate(P1P, aiger_not(witness_map[1][witness->outputs[j].lit]));
   }
+  return std::array{R0K, R0KP, R0P, F01K, F01KP, F01P, C0,
+                    C0P, C1,   C1P, P0,   P0P,   P1P};
+}
+
+int main(int argc, char *argv[]) {
+  auto [model, witness, check, check_path] = initialize(argc, argv);
+  auto shared = get_shared(model, witness);
+  auto [witness_map, model_map, maxvar] =
+      encode_unrolling(shared, model, witness, check);
+
+  auto gate = [&check, &maxvar](unsigned x, unsigned y) {
+    assert(maxvar % 2 == 0);
+    aiger_add_and(check, maxvar, x, y);
+    maxvar += 2;
+    return maxvar - 2;
+  };
+  auto imply = [&gate](unsigned x, unsigned y) {
+    return aiger_not(gate(x, aiger_not(y)));
+  };
+
+  auto [R0K, R0KP, R0P, F01K, F01KP, F01P, C0, C0P, C1, C1P, P0, P0P, P1P] =
+      encode_components(shared, witness, witness_map, model, model_map, gate);
 
   // Reset: R0K ∧ C0 → R0KP ∧ C0P
   unsigned guard_reset = gate(R0K, C0);
