@@ -27,17 +27,18 @@ bool reencoded(const aiger *aig) {
   return true;
 }
 
+aiger *model, *witness, *check;
+unsigned maxvar{2};
 // Parse command-line arguments, initialize aigs
-auto initialize(int argc, char *argv[]) {
+const char *initialize(int argc, char *argv[]) {
   if (argc > 1 && !std::strcmp(argv[1], "--version"))
     std::cout << VERSION << "\n", exit(0);
   if (argc < 3)
     std::cerr << "Usage: " << argv[0] << " model witness [check=check.aig]\n",
         exit(1);
   const char *paths[3] = {argv[1], argv[2], argc > 3 ? argv[3] : "check.aig"};
-  std::array<aiger *, 3> aigs;
-  for (int i = 0; i < 3; ++i)
-    aigs[i] = aiger_init();
+  check = aiger_init();
+  aiger *aigs[2] = {model = aiger_init(), witness = aiger_init()};
   for (int i = 0; i < 2; ++i) {
     if (const char *err = aiger_open_and_read_from_file(aigs[i], paths[i]))
       std::cerr << "Error reading " << (i ? "witness '" : "model '") << paths[i]
@@ -50,7 +51,27 @@ auto initialize(int argc, char *argv[]) {
   }
   MSG << "Certify Model Checking Witnesses in AIGER\n";
   MSG << VERSION << " " << GITID << "\n";
-  return std::tuple{aigs[0], aigs[1], aigs[2], paths[2]};
+  return paths[2];
+}
+
+void finalize(const char *path) {
+  aiger_open_and_write_to_file(check, path);
+  aiger_reset(check);
+  aiger_reset(witness);
+  aiger_reset(model);
+}
+
+unsigned gate(unsigned x, unsigned y) {
+  assert(maxvar % 2 == 0);
+  aiger_add_and(check, maxvar, x, y);
+  maxvar += 2;
+  return maxvar - 2;
+}
+unsigned imply(unsigned x, unsigned y) {
+  return aiger_not(gate(x, aiger_not(y)));
+}
+unsigned equivalent(unsigned x, unsigned y) {
+  return gate(imply(x, y), imply(y, x));
 }
 
 const char *parse_num(const char *c, unsigned &value, const char *msg) {
@@ -62,7 +83,7 @@ const char *parse_num(const char *c, unsigned &value, const char *msg) {
 
 // There are three ways to get a mapping indicating the shared literals, in
 // order: 1) A MAPPING comment 2) Symbol table 3) Default mapping
-auto get_shared(const aiger *model, const aiger *witness) {
+std::vector<std::pair<unsigned, unsigned>> get_shared() {
   std::vector<std::pair<unsigned, unsigned>> shared;
   bool found_mapping{};
   unsigned num_mapped{}, w{}, m{};
@@ -112,9 +133,8 @@ auto get_shared(const aiger *model, const aiger *witness) {
 }
 
 // The literals are ordered in map W0, M0, W1, M1 and each of those I, L, A
-auto encode_unrolling(const std::vector<std::pair<unsigned, unsigned>> &shared,
-                      const aiger *model, const aiger *witness, aiger *check) {
-  unsigned maxvar{2};
+std::array<std::array<std::vector<unsigned>, 2>, 2>
+encode_unrolling(const std::vector<std::pair<unsigned, unsigned>> &shared) {
   std::array<std::array<std::vector<unsigned>, 2>, 2> map;
   std::vector<const aiger *> circuits{witness, model};
   for (unsigned t = 0; t < 2; ++t)
@@ -159,15 +179,13 @@ auto encode_unrolling(const std::vector<std::pair<unsigned, unsigned>> &shared,
     witness_map[t] = std::move(map[t][0]);
     model_map[t] = std::move(map[t][1]);
   }
-  return std::tuple(witness_map, model_map, maxvar);
+  return {witness_map, model_map};
 }
 
-auto encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
-                       const aiger *witness,
-                       const std::array<std::vector<unsigned>, 2> &witness_map,
-                       const aiger *model,
-                       const std::array<std::vector<unsigned>, 2> &model_map,
-                       auto gate) {
+std::array<unsigned, 13>
+encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
+                  const std::array<std::vector<unsigned>, 2> &witness_map,
+                  const std::array<std::vector<unsigned>, 2> &model_map) {
   std::vector<aiger_symbol *> K, KP;
   K.reserve(shared.size());
   KP.reserve(shared.size());
@@ -175,11 +193,6 @@ auto encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
     if (auto *l = aiger_is_latch(model, m)) K.push_back(l);
     if (auto *l = aiger_is_latch(witness, w)) KP.push_back(l);
   }
-
-  auto equivalent = [&](unsigned x, unsigned y) {
-    return gate(aiger_not(gate(x, aiger_not(y))),
-                aiger_not(gate(y, aiger_not(x))));
-  };
 
   unsigned R0K{1}, R0KP{1}, R0P{1};
   for (auto l : K)
@@ -233,23 +246,12 @@ auto encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
 }
 
 int main(int argc, char *argv[]) {
-  auto [model, witness, check, check_path] = initialize(argc, argv);
-  auto shared = get_shared(model, witness);
-  auto [witness_map, model_map, maxvar] =
-      encode_unrolling(shared, model, witness, check);
-
-  auto gate = [&check, &maxvar](unsigned x, unsigned y) {
-    assert(maxvar % 2 == 0);
-    aiger_add_and(check, maxvar, x, y);
-    maxvar += 2;
-    return maxvar - 2;
-  };
-  auto imply = [&gate](unsigned x, unsigned y) {
-    return aiger_not(gate(x, aiger_not(y)));
-  };
+  auto check_path = initialize(argc, argv);
+  auto shared = get_shared();
+  auto [witness_map, model_map] = encode_unrolling(shared);
 
   auto [R0K, R0KP, R0P, F01K, F01KP, F01P, C0, C0P, C1, C1P, P0, P0P, P1P] =
-      encode_components(shared, witness, witness_map, model, model_map, gate);
+      encode_components(shared, witness_map, model_map);
 
   // Reset: R0K ∧ C0 → R0KP ∧ C0P
   unsigned guard_reset = gate(R0K, C0);
@@ -278,8 +280,5 @@ int main(int argc, char *argv[]) {
   unsigned step = imply(guard_step, P1P);
   aiger_add_output(check, aiger_not(step), "step");
 
-  aiger_open_and_write_to_file(check, check_path);
-  aiger_reset(check);
-  aiger_reset(witness);
-  aiger_reset(model);
+  finalize(check_path);
 }
