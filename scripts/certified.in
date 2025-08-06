@@ -49,11 +49,11 @@ if [ $res -eq 124 ]; then
 fi
 
 # Determine result from log
-if grep -q "RESULT: SAT" "$LOG"; then
+if grep -q "^sat$" "$LOG"; then
     echo $(basename "$0"): Checking SAT
     "$check_sat" "$MODEL" "$SAT"
     res=$?
-elif grep -q "RESULT: UNSAT" "$LOG"; then
+elif grep -q "^unsat$" "$LOG"; then
     echo $(basename "$0"): Checking UNSAT
     "$check_unsat" $SEQUENTIAL "$MODEL" "$UNSAT"
     res=$?
