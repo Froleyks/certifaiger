@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 certifaiger="$bin"/certifaiger
-sat_solver="$bin"/kissat
+sat_solver="$bin"/@SAT@
 aigtocnf="$bin"/aigtocnf
 aigsplit="$bin"/aigsplit
 for i in certifaiger sat_solver aigtocnf aigsplit; do
