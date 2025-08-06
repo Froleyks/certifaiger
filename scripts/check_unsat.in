@@ -37,7 +37,7 @@ $aigsplit "$check".aig split_ || {
 sat() {
     echo Checking $1
     $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
-    $sat_solver --unsat --quiet "${TMP}/$2.cnf"
+    $sat_solver --no-congruence --unsat --quiet "${TMP}/$2.cnf"
     if [ $? -ne 20 ]; then
         echo "Error: $1 check failed"
         exit 1
