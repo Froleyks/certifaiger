@@ -70,7 +70,19 @@ l1 = 4
 c
 WITNESS o0 model.aig shasum 9f1747da5a7dd981c9dac13f4077c8e31c9ce50d
 #+end_example
-To allow the translation between the two formats without breaking the mapping, Certifaiger enforces consecutive indexing for inputs and latches, even in ASCII format.
+
+Certifaiger also allows to map latches and inputs to gates in the witness circuit which might be necessary for certifying certain techniques (e.g. retiming).
+However, since those cannot be expressed in the symbol table, the mapping has to be specified in a comment as follows:
+#+begin_example
+c
+MAPPING 1
+12 2
+17 4
+#+end_example
+Where, the number after MAPPING specifies how big the mapping is,
+and the lines following it list witness literal followed by simulated model literal.
+
+To allow the translation between the ASCI and binary format without breaking the mapping, Certifaiger enforces consecutive indexing for inputs and latches, even in ASCII format.
 
 While not required, it is recommended to include a comment starting with 'WITNESS' followed by the property being certified and the name of the model file. Additionally, a hash may be included.
 
