@@ -61,6 +61,41 @@ void finalize(const char *path) {
   aiger_reset(model);
 }
 
+// Checks if the circuit is stratified (no cyclic dependencies in the reset
+// definition) using Kahn. In addition to ands, latches have an edge to their
+// reset.
+bool stratified(const aiger *aig) {
+  const unsigned n = aig->maxvar + 1;
+  std::vector<unsigned> in_degree(n);
+  std::vector<unsigned> stack;
+  stack.reserve(n);
+  for (int i = 0; i < aig->num_ands; ++i) {
+    aiger_and *a = aig->ands + i;
+    in_degree[a->rhs0 >> 1]++;
+    in_degree[a->rhs1 >> 1]++;
+  }
+  for (int i = 0; i < aig->num_latches; ++i) {
+    aiger_symbol *l = aig->latches + i;
+    if (l->reset != l->lit) in_degree[l->reset >> 1]++;
+  }
+  for (unsigned i = 0; i < n; ++i)
+    if (!in_degree[i]) stack.push_back(i << 1);
+  unsigned visited{};
+  while (!stack.empty()) {
+    unsigned l{stack.back()};
+    stack.pop_back();
+    visited++;
+    if (aiger_and *a = aiger_is_and(aig, l)) {
+      if (!--in_degree[a->rhs0 >> 1]) stack.push_back(a->rhs0);
+      if (!--in_degree[a->rhs1 >> 1]) stack.push_back(a->rhs1);
+    } else if (aiger_symbol *lat = aiger_is_latch(aig, l)) {
+      if (lat->reset != lat->lit && !--in_degree[lat->reset >> 1])
+        stack.push_back(lat->reset);
+    }
+  }
+  return visited == n;
+}
+
 unsigned gate(unsigned x, unsigned y) {
   assert(maxvar % 2 == 0);
   aiger_add_and(check, maxvar, x, y);
@@ -247,6 +282,8 @@ encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
 
 int main(int argc, char *argv[]) {
   auto check_path = initialize(argc, argv);
+  if (!stratified(witness))
+    std::cerr << "Witness resets not not stratified\n", exit(1);
   auto shared = get_shared();
   auto [witness_map, model_map] = encode_unrolling(shared);
 
