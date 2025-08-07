@@ -39,7 +39,7 @@ sat() {
     echo Checking $1
     $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
     [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
-    [ "$(basename "$sat_checker")" = "lrat-trim" ] && format=--lrat
+    [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
     $sat_solver --unsat --quiet $format "${TMP}/$2.cnf" $proof
     if [ $? -ne 20 ]; then
         echo "Error: $1 check failed"
