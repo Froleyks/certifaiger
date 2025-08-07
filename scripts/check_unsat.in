@@ -1,23 +1,17 @@
 #!/usr/bin/env bash
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 certifaiger="$bin"/certifaiger
-sat_solver="$bin"/kissat
+sat_solver="$bin/@SAT@"
+[ -n "@SAT_CHECKER@" ] && sat_checker="$bin/@SAT_CHECKER@"
 aigtocnf="$bin"/aigtocnf
-# non-stratified reset only
-qaiger2qcir="$bin"/qaiger2qcir
-quabs="$bin"/quabs
-for i in certifaiger sat_solver aigtocnf; do
+aigsplit="$bin"/aigsplit
+for i in certifaiger sat_solver aigtocnf aigsplit; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <witness>" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
-CHECKS=(reset transition property base step)
-AIGS=()
-for check in "${CHECKS[@]}"; do
-    AIGS+=("${TMP}/$check.aig")
-done
 SEQUENTIAL=0
 if [[ $1 = "--seq" ]]; then
     SEQUENTIAL=1
@@ -25,74 +19,64 @@ if [[ $1 = "--seq" ]]; then
 fi
 model="$1"
 witness="$2"
+check="${model##*/}"
+check="${check%.*}"
+check="${TMP}/check_${check}"
 shift 2
-
 echo $(basename "$0"): Checking witness circuit "$witness"
-$certifaiger "$model" "$witness" "${AIGS[@]}" "$@"
+$certifaiger "$model" "$witness" "$check".aig "$@"
 certifaiger_exit=$?
 [ $certifaiger_exit -ne 0 ] && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit)" >&2 && exit 1
 echo
 
+cd "$TMP" || exit 1
+$aigsplit "$check".aig split_ || {
+    echo "$(basename "$0"): Error: aigsplit failed" >&2
+    exit 1
+}
+
 sat() {
     echo Checking $1
-    $aigtocnf "${TMP}/$1.aig" "${TMP}/$1.cnf"
-    $sat_solver --quiet "${TMP}/$1.cnf"
+    $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
+    [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
+    [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
+    $sat_solver --unsat --quiet $format "${TMP}/$2.cnf" $proof
     if [ $? -ne 20 ]; then
         echo "Error: $1 check failed"
         exit 1
     fi
-    echo
-}
-
-qbf() {
-    for i in qaiger2qcir quabs; do
-        [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
-    done
-    echo Checking $1 with quantification
-    $qaiger2qcir "${TMP}/$1.aig" >"${TMP}/$1.qcir"
-    $quabs "${TMP}/$1.qcir"
-    if [ $? -ne 20 ]; then
-        echo "Error: $1 check failed"
-        exit 1
-    fi
-    echo
-}
-
-STATUSES=()
-if [ "$SEQUENTIAL" -eq 1 ]; then
-    echo "Running checks sequentially..."
-    for check in "${CHECKS[@]}"; do
-        if grep -q 'Quantified universal' "${TMP}/$check.aig"; then
-            qbf "$check"
-        else
-            sat "$check"
+    if [ -n "$sat_checker" ]; then
+        expected=0
+        [ "$(basename "$sat_checker")" = "lrat-trim" ] && expected=20 && quiet=--quiet
+        $sat_checker $quiet "${TMP}/$2.cnf" $proof
+        if [ $? -ne $expected ]; then
+            echo "Error: $1 proof check failed"
+            exit 1
         fi
-        STATUSES+=($?)
-    done
-else
-    echo "Running checks in parallel..."
-    PIDS=()
-    for check in "${CHECKS[@]}"; do
-        (
-            if grep -q 'Quantified universal' "${TMP}/$check.aig"; then
-                qbf "$check"
-            else
-                sat "$check"
-            fi
-        ) &
-        PIDS+=($!)
-    done
-    for pid in "${PIDS[@]}"; do
-        wait "$pid"
-        STATUSES+=($?)
-    done
-fi
-
-for status in "${STATUSES[@]}"; do
-    if [ "$status" -ne 0 ]; then
-        echo "$(basename "$0"): Certificate check failed."
-        exit 1
     fi
+    rm -f "$proof"
+}
+
+CHECKS=(reset transition property base step)
+PIDS=()
+for i in {0..4}; do
+    name="${CHECKS[i]}"
+    aig="split_o$i.aig"
+    if [ "$SEQUENTIAL" -eq 1 ]; then
+        sat "$name" "$aig" || {
+            echo $(basename "$0"): Certificate check failed.
+            exit 1
+        }
+    else
+        (sat "$name" "$aig") &
+        PIDS+=($!)
+    fi
+done
+for pid in "${PIDS[@]}"; do
+    wait "$pid" || {
+        echo $(basename "$0"): Certificate check failed.
+        exit 1
+    }
 done
 
 echo "$(basename "$0"): Certificate check passed."

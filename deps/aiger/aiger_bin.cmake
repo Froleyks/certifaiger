@@ -1,4 +1,4 @@
-set(AIGER_TOOLS aigtocnf aigsim aigfuzz aigdd aigtoaig aigfuzz)
+set(AIGER_TOOLS aigtocnf aigsim aigfuzz aigdd aigtoaig aigsplit aigfuzz)
 
 ExternalProject_Add(
   aiger_tools
