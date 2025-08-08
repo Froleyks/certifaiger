@@ -31,7 +31,7 @@ if [[ $# -ge 3 && $3 != -* ]]; then
     UNSAT="$3"
     shift
 fi
-if [[ $# -ge 4 && $3 != -* ]]; then
+if [[ $# -ge 4 && $4 != -* ]]; then
     UNSAT="$4"
     shift
 fi
