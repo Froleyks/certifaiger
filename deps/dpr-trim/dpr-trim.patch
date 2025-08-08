@@ -1,0 +1,13 @@
+diff --git a/dpr-trim.c b/dpr-trim.c
+index ede28c7..44bbfb7 100644
+--- a/dpr-trim.c
++++ b/dpr-trim.c
+@@ -23,7 +23,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
+ #include <assert.h>
+ #include <sys/time.h>
+ 
+-#define TIMEOUT     40000
++#define TIMEOUT     (1 << 30) // 30+ years
+ #define BIGINIT     1000000
+ #define INIT        4
+ #define END         0
