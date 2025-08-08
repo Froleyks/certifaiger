@@ -21,24 +21,25 @@ if [[ $1 =~ --mc_time=([0-9]+) ]]; then
     limit="timeout ${BASH_REMATCH[1]} "
     shift 1
 fi
+
 MC="$1"
 MODEL="$2"
+shift 2
 NAME=$(basename "$MODEL" | sed 's/\.[^.]*$//')
 SAT=$TMP/${NAME}.sat
 UNSAT=$TMP/${NAME}.unsat.aig
-if [[ $# -ge 3 && $3 != -* ]]; then
-    SAT="$3"
-    UNSAT="$3"
+if [[ $# -ge 1 && $1 != -* ]]; then
+    SAT="$1"
+    UNSAT="$1"
     shift
 fi
-if [[ $# -ge 4 && $4 != -* ]]; then
-    UNSAT="$4"
+if [[ $# -ge 1 && $1 != -* ]]; then
+    UNSAT="$1"
     shift
 fi
 echo $(basename "$0"): writing witness to "$SAT" and "$UNSAT"
 LOG=$TMP/${NAME}.log
 
-shift 2
 echo $(basename "$0"): running "$MC" on "$MODEL"
 $limit $MC "$MODEL" "$SAT" "$UNSAT" "$@" | tee "$LOG"
 res=${PIPESTATUS[0]}
@@ -48,7 +49,6 @@ if [ $res -eq 124 ]; then
     exit 0
 fi
 
-# Determine result from log
 if grep -q "^sat$" "$LOG"; then
     echo $(basename "$0"): Checking SAT
     "$check_sat" "$MODEL" "$SAT"
