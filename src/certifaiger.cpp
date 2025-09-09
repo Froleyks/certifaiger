@@ -247,34 +247,34 @@ encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
   for (auto l : KP)
     F01KP = gate(F01KP,
                  equivalent(witness_map[0][l->next], witness_map[1][l->lit]));
-  for (unsigned j = 0; j < witness->num_latches; ++j) {
-    aiger_symbol *l = witness->latches + j;
+  for (unsigned i = 0; i < witness->num_latches; ++i) {
+    aiger_symbol *l = witness->latches + i;
     F01P =
         gate(F01P, equivalent(witness_map[0][l->next], witness_map[1][l->lit]));
   }
 
   unsigned C0{1}, C0P{1}, C1{1}, C1P{1};
-  for (unsigned j = 0; j < witness->num_constraints; ++j) {
-    C0P = gate(C0P, witness_map[0][witness->constraints[j].lit]);
-    C1P = gate(C1P, witness_map[1][witness->constraints[j].lit]);
+  for (unsigned i = 0; i < witness->num_constraints; ++i) {
+    C0P = gate(C0P, witness_map[0][witness->constraints[i].lit]);
+    C1P = gate(C1P, witness_map[1][witness->constraints[i].lit]);
   }
-  for (unsigned j = 0; j < model->num_constraints; ++j) {
-    C0 = gate(C0, model_map[0][model->constraints[j].lit]);
-    C1 = gate(C1, model_map[1][model->constraints[j].lit]);
+  for (unsigned i = 0; i < model->num_constraints; ++i) {
+    C0 = gate(C0, model_map[0][model->constraints[i].lit]);
+    C1 = gate(C1, model_map[1][model->constraints[i].lit]);
   }
 
   unsigned P0{1}, P0P{1}, P1P{1};
-  for (unsigned j = 0; j < model->num_bad; ++j)
-    P0 = gate(P0, aiger_not(model_map[0][model->bad[j].lit]));
-  for (unsigned j = 0; j < witness->num_bad; ++j) {
-    P0P = gate(P0P, aiger_not(witness_map[0][witness->bad[j].lit]));
-    P1P = gate(P1P, aiger_not(witness_map[1][witness->bad[j].lit]));
+  for (unsigned i = 0; i < model->num_bad; ++i)
+    P0 = gate(P0, aiger_not(model_map[0][model->bad[i].lit]));
+  for (unsigned i = 0; i < witness->num_bad; ++i) {
+    P0P = gate(P0P, aiger_not(witness_map[0][witness->bad[i].lit]));
+    P1P = gate(P1P, aiger_not(witness_map[1][witness->bad[i].lit]));
   }
-  for (unsigned j = 0; j < model->num_outputs; ++j)
-    P0 = gate(P0, aiger_not(model_map[0][model->outputs[j].lit]));
-  for (unsigned j = 0; j < witness->num_outputs; ++j) {
-    P0P = gate(P0P, aiger_not(witness_map[0][witness->outputs[j].lit]));
-    P1P = gate(P1P, aiger_not(witness_map[1][witness->outputs[j].lit]));
+  for (unsigned i = 0; i < model->num_outputs; ++i)
+    P0 = gate(P0, aiger_not(model_map[0][model->outputs[i].lit]));
+  for (unsigned i = 0; i < witness->num_outputs; ++i) {
+    P0P = gate(P0P, aiger_not(witness_map[0][witness->outputs[i].lit]));
+    P1P = gate(P1P, aiger_not(witness_map[1][witness->outputs[i].lit]));
   }
   return std::array{R0K, R0KP, R0P, F01K, F01KP, F01P, C0,
                     C0P, C1,   C1P, P0,   P0P,   P1P};
