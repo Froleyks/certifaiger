@@ -75,7 +75,7 @@ Certifaiger also allows to map latches and inputs to gates in the witness circui
 However, since those cannot be expressed in the symbol table, the mapping has to be specified in a comment as follows:
 #+begin_example
 c
-MAPPING 1
+MAPPING 2
 12 2
 17 4
 #+end_example
@@ -88,7 +88,7 @@ While not required, it is recommended to include a comment starting with 'WITNES
 
 If no mapping information is found, Certifaiger assumes that
 the first $n$ inputs in the model are simulated by the first $n$ inputs in the witness, and the first $m$ latches by the first $m$ latches in the witness.
-The first bad or in the absence of that the first output is certified.
+The first disjunction of all bad and outputs is certified.
 Check out the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
 ** Stratified Reset
 A circuit is said to be stratified if the syntactic dependency graph induced by its reset function is acyclic.
@@ -103,8 +103,7 @@ the Reset check above ensures that the set of shared latches $M$ is at the botto
 i.e., the reset of the latches in $M$ depends only on $M$.
 It follows that any reset of $M$ can be extended to a reset of $L'$.
 
-If the witness circuit is not stratified, it is not guaranteed that a partial reset can be extended.
-Therefore, Certifaiger will fail certification if the polynomial stratification test fails and /--qbf 1/ is not specified.
+If the witness circuit is not stratified, it is not guaranteed that a partial reset can be extended, and Certifaiger will fail.
 ** References
 The theory this tool is based on is detailed in our papers.
 Furthermore, we demonstrate how to certify the combination of different preprocessing techniques and model checking algorithms with witness circuits.
