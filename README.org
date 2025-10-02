@@ -88,7 +88,7 @@ While not required, it is recommended to include a comment starting with 'WITNES
 
 If no mapping information is found, Certifaiger assumes that
 the first $n$ inputs in the model are simulated by the first $n$ inputs in the witness, and the first $m$ latches by the first $m$ latches in the witness.
-The first disjunction of all bad and outputs is certified.
+The disjunction of all bads and outputs is certified.
 Check out the [[https://github.com/Froleyks/certifaiger/blob/main/examples][examples]] directory.
 ** Stratified Reset
 A circuit is said to be stratified if the syntactic dependency graph induced by its reset function is acyclic.
