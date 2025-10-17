@@ -1,14 +1,10 @@
-FROM ubuntu:24.04
-
-RUN \
-  apt-get update && \
+FROM debian:trixie-slim
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    build-essential cmake git && \
-  apt-get clean
+      bash ca-certificates git \
+      build-essential cmake
 
-COPY . /certifaiger
 WORKDIR /certifaiger
-ENV GIT_SSL_NO_VERIFY=true
+COPY . .
 RUN make
-
-ENTRYPOINT ["/certifaiger/build/check"]
