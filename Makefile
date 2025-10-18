@@ -13,7 +13,7 @@ proof: CMakeLists.txt
 container: clean
 	podman build -t $(name) .
 	podman create --name $(name) $(name)
-	podman cp $(name):/$(name)/bin .
+	podman cp $(name):/usr/local/bin .
 	podman rm $(name)
 clean:
 	rm -rf build bin
