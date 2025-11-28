@@ -1,6 +1,7 @@
 #include <array>
 #include <cassert>
 #include <charconv>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <limits>
@@ -18,6 +19,15 @@ constexpr unsigned INVALID_LIT = std::numeric_limits<unsigned>::max();
 #define MSG std::cout << "Certifaiger: "
 #endif
 
+constexpr unsigned circuits = 2; // W, M
+constexpr unsigned times = 3;    // t0, t1, t2
+aiger *model, *witness, *check;
+std::array<aiger *, circuits> aig;
+unsigned maxvar{2};
+struct predicates {
+  unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1}, Q{1};
+};
+
 bool reencoded(const aiger *aig) {
   unsigned l{};
   for (unsigned i = 0; i < aig->num_inputs; ++i)
@@ -27,8 +37,6 @@ bool reencoded(const aiger *aig) {
   return true;
 }
 
-aiger *model, *witness, *check;
-unsigned maxvar{2};
 // Parse command-line arguments, initialize aigs
 const char *initialize(int argc, char *argv[]) {
   if (argc > 1 && !std::strcmp(argv[1], "--version"))
@@ -36,26 +44,38 @@ const char *initialize(int argc, char *argv[]) {
   if (argc < 3)
     std::cerr << "Usage: " << argv[0] << " model witness [check=check.aig]\n",
         exit(1);
-  const char *paths[3] = {argv[1], argv[2], argc > 3 ? argv[3] : "check.aig"};
+  // for the rest of the logic witness comes before model
+  const char *paths[3] = {argv[2], argv[1], argc > 3 ? argv[3] : "check.aig"};
   check = aiger_init();
-  aiger *aigs[2] = {model = aiger_init(), witness = aiger_init()};
-  for (int i = 0; i < 2; ++i) {
-    if (const char *err = aiger_open_and_read_from_file(aigs[i], paths[i]))
-      std::cerr << "Error reading " << (i ? "witness '" : "model '") << paths[i]
+  aig = {witness = aiger_init(), model = aiger_init()};
+  for (int c = 0; c < circuits; ++c) {
+    if (const char *err = aiger_open_and_read_from_file(aig[c], paths[c]))
+      std::cerr << "Error reading " << (c ? "model '" : "witness '") << paths[c]
                 << "': " << err << '\n',
           exit(1);
-    if (!reencoded(aigs[i]))
-      std::cerr << "Error: " << (i ? "witness '" : "model '") << paths[i]
+
+    if (!reencoded(aig[c]))
+      std::cerr << "Error: " << (c ? "model '" : "witness '") << paths[c]
                 << "' is not reencoded\n",
           exit(1);
+
+    if (aig[c]->num_fairness) std::cerr << "Fairness not supported\n", exit(1);
+    for (size_t i = 0; i < aig[c]->num_justice; ++i) {
+      if (aig[c]->justice[i].size > 1)
+        std::cerr << "Justice properties with more than one fairness "
+                     "constraint not supported\n",
+            exit(1);
+    }
   }
   MSG << "Certify Model Checking Witnesses in AIGER\n";
   MSG << VERSION << " " << GITID << "\n";
+
   return paths[2];
 }
 
 void finalize(const char *path) {
-  aiger_open_and_write_to_file(check, path);
+  if (bool err = !aiger_open_and_write_to_file(check, path))
+    std::cerr << "Error writing " << path, exit(1);
   aiger_reset(check);
   aiger_reset(witness);
   aiger_reset(model);
@@ -118,14 +138,14 @@ const char *parse_num(const char *c, unsigned &value, const char *msg) {
 
 // There are three ways to get a mapping indicating the shared literals, in
 // order: 1) A MAPPING comment 2) Symbol table 3) Default mapping
-std::vector<std::pair<unsigned, unsigned>> get_shared() {
+std::vector<std::pair<unsigned, unsigned>> read_shared() {
   std::vector<std::pair<unsigned, unsigned>> shared;
   bool found_mapping{};
   unsigned num_mapped{}, w{}, m{};
   const char *const *p = witness->comments;
   const char *c;
   for (; (c = *p++);)
-    if (!strncmp(c, "MAPPING", 7)) {
+    if (!strncmp(c, "MAPPING ", 8)) {
       parse_num(c + 8, num_mapped, "MAPPING requires number of mapped gates");
       found_mapping = true;
       break;
@@ -167,155 +187,196 @@ std::vector<std::pair<unsigned, unsigned>> get_shared() {
   return shared;
 }
 
-// The literals are ordered in map W0, M0, W1, M1 and each of those I, L, A
-std::array<std::array<std::vector<unsigned>, 2>, 2>
-encode_unrolling(const std::vector<std::pair<unsigned, unsigned>> &shared) {
-  std::array<std::array<std::vector<unsigned>, 2>, 2> map;
-  std::vector<const aiger *> circuits{witness, model};
-  for (unsigned t = 0; t < 2; ++t)
-    for (unsigned c = 0; c < 2; ++c) {
-      map[t][c].assign((circuits[c]->maxvar + 1) * 2, INVALID_LIT);
-      map[t][c][0] = aiger_false;
-      map[t][c][1] = aiger_true;
-    }
-  for (unsigned i = 2; i < map[0][0].size(); ++i)
-    map[0][0][i] = maxvar++;
-  const unsigned witness_end = maxvar - 1;
-  for (auto [m, w] : shared) {
-    map[0][1][m] = map[0][0][w];
-    map[0][1][aiger_not(m)] = map[0][0][aiger_not(w)];
-  }
-  for (unsigned i = 0; i < map[0][1].size(); ++i)
-    if (map[0][1][i] == INVALID_LIT) map[0][1][i] = maxvar++;
-  const unsigned offset = maxvar - 2;
-  for (unsigned c = 0; c < 2; ++c)
-    for (unsigned i = 2; i < map[0][c].size(); ++i)
-      map[1][c][i] = map[0][c][i] + offset;
-  maxvar += offset;
+// Create three copies of the merged witness and model circuits with latches
+// turned to inputs. The witness has the lower indices as it is often a
+// superset of the model.
+// Returns map[circuit][time]
+std::array<std::array<std::vector<unsigned>, times>, circuits>
+unroll(const std::vector<std::pair<unsigned, unsigned>> &shared) {
+  const std::array<unsigned, circuits> size = {2 * (witness->maxvar + 1),
+                                               2 * (model->maxvar + 1)};
+  std::array<std::array<std::vector<unsigned>, times>, circuits> map;
 
-  for (unsigned c = 0; c < 2; ++c) {
-    for (unsigned i = 2;
-         i <= 2 * (circuits[c]->num_inputs + circuits[c]->num_latches);
-         i += 2) {
-      if (c == 1 && map[0][c][i] < witness_end) continue;
-      aiger_add_input(check, map[0][c][i], nullptr);
-      aiger_add_input(check, map[1][c][i], nullptr);
+  for (unsigned c = 0; c < circuits; ++c) {
+    for (unsigned t = 0; t < times; ++t) {
+      map[c][t].assign(size[c], INVALID_LIT);
+      map[c][t][0] = aiger_false;
+      map[c][t][1] = aiger_true;
     }
   }
-  for (unsigned t = 0; t < 2; ++t)
-    for (unsigned c = 0; c < 2; ++c)
-      for (int i = 0; i < circuits[c]->num_ands; ++i) {
-        auto [a, x, y] = circuits[c]->ands[i];
-        aiger_add_and(check, map[t][c][a], map[t][c][x], map[t][c][y]);
+
+  for (unsigned t = 0; t < times; ++t) {
+    for (unsigned c = 0; c < circuits; ++c) {
+      if (c) { // map the shared latches already in the witness
+        for (auto [m, w] : shared) {
+          map[c][t][m] = map[0][t][w];
+          map[c][t][aiger_not(m)] = map[0][t][aiger_not(w)];
+        }
       }
 
-  std::array<std::vector<unsigned>, 2> witness_map, model_map;
-  for (unsigned t = 0; t < 2; ++t) {
-    witness_map[t] = std::move(map[t][0]);
-    model_map[t] = std::move(map[t][1]);
+      for (unsigned l = 0; l < size[c]; l += 2) {
+        if (map[c][t][l] != INVALID_LIT) continue;
+        if (aiger_is_input(aig[c], l) || aiger_is_latch(aig[c], l))
+          aiger_add_input(check, maxvar, nullptr);
+        else if (aiger_and *a = aiger_is_and(aig[c], l)) {
+          assert(map[c][t][a->rhs0] != INVALID_LIT);
+          assert(map[c][t][a->rhs1] != INVALID_LIT);
+          aiger_add_and(check, maxvar, map[c][t][a->rhs0], map[c][t][a->rhs1]);
+        } else
+          assert(false);
+        map[c][t][l] = maxvar++;
+        map[c][t][l + 1] = maxvar++;
+      }
+    }
   }
-  return {witness_map, model_map};
+
+  return map;
 }
 
-std::array<unsigned, 13>
-encode_components(const std::vector<std::pair<unsigned, unsigned>> &shared,
-                  const std::array<std::vector<unsigned>, 2> &witness_map,
-                  const std::array<std::vector<unsigned>, 2> &model_map) {
-  std::vector<aiger_symbol *> K, KP;
-  K.reserve(shared.size());
-  KP.reserve(shared.size());
+// Encodes the predicates for model and witness at each time step of the
+// unrolling into the check circuit.
+// Returns predicates[circuit][time]{R, RK, F, FK, C, P, Q}
+std::array<std::array<predicates, times>, circuits> encode_predicates(
+    const std::array<std::array<std::vector<unsigned>, times>, circuits> &map,
+    const std::vector<std::pair<unsigned, unsigned>> &shared) {
+  std::array<std::array<predicates, times>, circuits> predicates;
+  std::array<std::vector<aiger_symbol *>, circuits> K;
+  K[0].reserve(shared.size());
+  K[1].reserve(shared.size());
   for (auto [m, w] : shared) {
-    if (auto *l = aiger_is_latch(model, m)) K.push_back(l);
-    if (auto *l = aiger_is_latch(witness, w)) KP.push_back(l);
+    if (auto *l = aiger_is_latch(witness, w)) K[0].push_back(l);
+    if (auto *l = aiger_is_latch(model, m)) K[1].push_back(l);
   }
 
-  unsigned R0K{1}, R0KP{1}, R0P{1};
-  for (auto l : K)
-    R0K = gate(R0K, equivalent(model_map[0][l->lit], model_map[0][l->reset]));
-  for (auto l : KP)
-    R0KP = gate(R0KP,
-                equivalent(witness_map[0][l->lit], witness_map[0][l->reset]));
-  for (unsigned i = 0; i < witness->num_latches; ++i) {
+  for (unsigned c = 0; c < circuits; ++c) {
+    for (unsigned t = 0; t < times; ++t) {
+
+      for (auto l : K[c])
+        predicates[c][t].RK =
+            gate(predicates[c][t].RK,
+                 equivalent(map[c][t][l->lit], map[c][t][l->reset]));
+      for (unsigned i = 0; i < aig[c]->num_latches; ++i) {
+        aiger_symbol *l = aig[c]->latches + i;
+        predicates[c][t].R =
+            gate(predicates[c][t].R,
+                 equivalent(map[c][t][l->lit], map[c][t][l->reset]));
+      }
+
+      if (t < times - 1) { // no transitions at last time step
+        for (auto l : K[c])
+          predicates[c][t].FK =
+              gate(predicates[c][t].FK,
+                   equivalent(map[c][t][l->next], map[c][t + 1][l->lit]));
+        for (unsigned i = 0; i < aig[c]->num_latches; ++i) {
+          aiger_symbol *l = aig[c]->latches + i;
+          predicates[c][t].F =
+              gate(predicates[c][t].F,
+                   equivalent(map[c][t][l->next], map[c][t + 1][l->lit]));
+        }
+      }
+
+      for (unsigned i = 0; i < aig[c]->num_constraints; ++i)
+        predicates[c][t].C =
+            gate(predicates[c][t].C, map[c][t][aig[c]->constraints[i].lit]);
+
+      for (unsigned i = 0; i < aig[c]->num_bad; ++i)
+        predicates[c][t].P =
+            gate(predicates[c][t].P, aiger_not(map[c][t][aig[c]->bad[i].lit]));
+      for (unsigned i = 0; i < aig[c]->num_outputs; ++i)
+        predicates[c][t].P = gate(predicates[c][t].P,
+                                  aiger_not(map[c][t][aig[c]->outputs[i].lit]));
+
+      // TODO fairness and justice
+      for (size_t i = 0; i < aig[c]->num_justice; ++i) {
+        assert(aig[c]->justice[i].size == 1);
+        predicates[c][t].Q =
+            gate(predicates[c][t].Q,
+                 aiger_not(map[c][t][aig[c]->justice[i].lits[0]]));
+      }
+    }
+  }
+
+  return predicates;
+}
+
+// Encodes the witness liveness predicate Q' at time ~current~ while replacing
+// next literals with the state literal in copy ~next~.
+unsigned
+WQ_intervention(const std::array<std::vector<unsigned>, times> &witness_map,
+                unsigned current, unsigned next) {
+  unsigned Q{1};
+  auto intervention_map = witness_map[current];
+  for (size_t i = 0; i < witness->num_latches; ++i) {
     aiger_symbol *l = witness->latches + i;
-    R0P =
-        gate(R0P, equivalent(witness_map[0][l->lit], witness_map[0][l->reset]));
+    intervention_map[l->next] = witness_map[next][l->lit];
+    intervention_map[aiger_not(l->next)] = witness_map[next][aiger_not(l->lit)];
   }
-
-  unsigned F01K{1}, F01KP{1}, F01P{1};
-  for (auto l : K)
-    F01K = gate(F01K, equivalent(model_map[0][l->next], model_map[1][l->lit]));
-  for (auto l : KP)
-    F01KP = gate(F01KP,
-                 equivalent(witness_map[0][l->next], witness_map[1][l->lit]));
-  for (unsigned i = 0; i < witness->num_latches; ++i) {
-    aiger_symbol *l = witness->latches + i;
-    F01P =
-        gate(F01P, equivalent(witness_map[0][l->next], witness_map[1][l->lit]));
+  for (int i = 0; i < witness->num_ands; ++i) {
+    aiger_and *a = witness->ands + i;
+    intervention_map[a->lhs] =
+        gate(intervention_map[a->rhs0], intervention_map[a->rhs1]);
   }
-
-  unsigned C0{1}, C0P{1}, C1{1}, C1P{1};
-  for (unsigned i = 0; i < witness->num_constraints; ++i) {
-    C0P = gate(C0P, witness_map[0][witness->constraints[i].lit]);
-    C1P = gate(C1P, witness_map[1][witness->constraints[i].lit]);
+  for (size_t i = 0; i < witness->num_justice; ++i) {
+    Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
   }
-  for (unsigned i = 0; i < model->num_constraints; ++i) {
-    C0 = gate(C0, model_map[0][model->constraints[i].lit]);
-    C1 = gate(C1, model_map[1][model->constraints[i].lit]);
-  }
-
-  unsigned P0{1}, P0P{1}, P1P{1};
-  for (unsigned i = 0; i < model->num_bad; ++i)
-    P0 = gate(P0, aiger_not(model_map[0][model->bad[i].lit]));
-  for (unsigned i = 0; i < witness->num_bad; ++i) {
-    P0P = gate(P0P, aiger_not(witness_map[0][witness->bad[i].lit]));
-    P1P = gate(P1P, aiger_not(witness_map[1][witness->bad[i].lit]));
-  }
-  for (unsigned i = 0; i < model->num_outputs; ++i)
-    P0 = gate(P0, aiger_not(model_map[0][model->outputs[i].lit]));
-  for (unsigned i = 0; i < witness->num_outputs; ++i) {
-    P0P = gate(P0P, aiger_not(witness_map[0][witness->outputs[i].lit]));
-    P1P = gate(P1P, aiger_not(witness_map[1][witness->outputs[i].lit]));
-  }
-  return std::array{R0K, R0KP, R0P, F01K, F01KP, F01P, C0,
-                    C0P, C1,   C1P, P0,   P0P,   P1P};
+  return Q;
 }
 
 int main(int argc, char *argv[]) {
   auto check_path = initialize(argc, argv);
   if (!stratified(witness))
-    std::cerr << "Witness resets not not stratified\n", exit(1);
-  auto shared = get_shared();
-  auto [witness_map, model_map] = encode_unrolling(shared);
+    std::cerr << "Witness resets not stratified\n", exit(1);
+  const auto shared = read_shared();
+  const auto map = unroll(shared);
+  const auto [W, M] = encode_predicates(map, shared);
+  unsigned WQ00 = WQ_intervention(map[0], 0, 0);
+  unsigned WQ02 = WQ_intervention(map[0], 0, 2);
 
-  auto [R0K, R0KP, R0P, F01K, F01KP, F01P, C0, C0P, C1, C1P, P0, P0P, P1P] =
-      encode_components(shared, witness_map, model_map);
-
-  // Reset: R0K ∧ C0 → R0KP ∧ C0P
-  unsigned guard_reset = gate(R0K, C0);
-  unsigned target_reset = gate(R0KP, C0P);
-  unsigned reset = imply(guard_reset, target_reset);
+  // Reset: RK0 ∧ C0 → RK0' ∧ C0'
+  unsigned antecedent_reset = gate(M[0].RK, M[0].C);
+  unsigned consequent_reset = gate(W[0].RK, W[0].C);
+  unsigned reset = imply(antecedent_reset, consequent_reset);
   aiger_add_output(check, aiger_not(reset), "reset");
 
-  // Transition: F01K ∧ C0 ∧ C1 ∧ C0P → F01KP ∧ C1P
-  unsigned guard_trans = gate(gate(gate(F01K, C0), C1), C0P);
-  unsigned target_trans = gate(F01KP, C1P);
-  unsigned transition = imply(guard_trans, target_trans);
+  // Transition: FK01 ∧ C0 ∧ C1 ∧ C0' → FK01' ∧ C1'
+  unsigned antecedent_trans = gate(gate(gate(M[0].FK, M[0].C), M[1].C), W[0].C);
+  unsigned consequent_trans = gate(W[0].FK, W[1].C);
+  unsigned transition = imply(antecedent_trans, consequent_trans);
   aiger_add_output(check, aiger_not(transition), "transition");
 
-  // Property: (C0 ∧ C0P ∧ P0P) → P0
-  unsigned guard_prop = gate(gate(C0, C0P), P0P);
-  unsigned property = imply(guard_prop, P0);
-  aiger_add_output(check, aiger_not(property), "property");
-
-  // Base: R0P ∧ C0P → P0P
-  unsigned guard_base = gate(R0P, C0P);
-  unsigned base = imply(guard_base, P0P);
+  // Base: R0' ∧ C0' → P0'
+  unsigned antecedent_base = gate(W[0].R, W[0].C);
+  unsigned base = imply(antecedent_base, W[0].P);
   aiger_add_output(check, aiger_not(base), "base");
 
-  // Step: P0P ∧ F01P ∧ C0P ∧ C1P → P1P
-  unsigned guard_step = gate(gate(gate(P0P, F01P), C0P), C1P);
-  unsigned step = imply(guard_step, P1P);
+  // Step: P0'∧ F01' ∧ C0'∧ C1' → P1'
+  unsigned antecedent_step = gate(gate(gate(W[0].P, W[0].F), W[0].C), W[1].C);
+  unsigned step = imply(antecedent_step, W[1].P);
   aiger_add_output(check, aiger_not(step), "step");
+
+  // Safety: (C0 ∧ C0' ∧ P0') → P0
+  unsigned antecedent_safety = gate(gate(M[0].C, W[0].C), W[0].P);
+  unsigned safety = imply(antecedent_safety, M[0].P);
+  aiger_add_output(check, aiger_not(safety), "safety");
+
+  // Liveness: (C0 ∧ C0' ∧ P0') → (Q00' → Q01)
+  unsigned antecedent_liveness = gate(gate(M[0].C, W[0].C), W[0].P);
+  unsigned liveness = imply(antecedent_liveness, imply(WQ00, M[0].Q));
+  aiger_add_output(check, aiger_not(liveness), "liveness");
+
+  // Decrease: (C0' ∧ C1' ∧ P0' ∧ P1') → F01' → Q01'
+  unsigned antecedent_decrease =
+      gate(gate(gate(W[0].C, W[1].C), W[0].P), W[1].P);
+  unsigned consequent_decrease = imply(W[0].F, W[0].Q);
+  unsigned decrease = imply(antecedent_decrease, consequent_decrease);
+  aiger_add_output(check, aiger_not(decrease), "decrease");
+
+  // Transitive: (C0' ∧ C1' ∧ C2' ∧ P0' ∧ P1' ∧ P2') → (Q01' ∧ Q12') → Q02'
+  unsigned antecedent_transitive = gate(
+      gate(gate(gate(gate(W[0].C, W[1].C), W[2].C), W[0].P), W[1].P), W[2].P);
+  unsigned consequent_transitive = imply(gate(W[0].Q, W[1].Q), WQ02);
+  unsigned transitive = imply(antecedent_transitive, consequent_transitive);
+  aiger_add_output(check, aiger_not(transitive), "transitive");
 
   finalize(check_path);
 }
