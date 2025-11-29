@@ -57,9 +57,9 @@ sat() {
     rm -f "$proof"
 }
 
-CHECKS=(reset transition property base step)
+CHECKS=(reset transition base step safety liveness decrease transitive)
 PIDS=()
-for i in {0..4}; do
+for i in {0..7}; do
     name="${CHECKS[i]}"
     aig="split_o$i.aig"
     if [ "$SEQUENTIAL" -eq 1 ]; then

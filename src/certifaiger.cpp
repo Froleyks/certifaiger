@@ -74,8 +74,8 @@ const char *initialize(int argc, char *argv[]) {
 }
 
 void finalize(const char *path) {
-  if (bool err = !aiger_open_and_write_to_file(check, path))
-    std::cerr << "Error writing " << path, exit(1);
+  if (!aiger_open_and_write_to_file(check, path))
+    std::cerr << "Error writing " << path << "\n", exit(1);
   aiger_reset(check);
   aiger_reset(witness);
   aiger_reset(model);
@@ -316,9 +316,8 @@ WQ_intervention(const std::array<std::vector<unsigned>, times> &witness_map,
     intervention_map[a->lhs] =
         gate(intervention_map[a->rhs0], intervention_map[a->rhs1]);
   }
-  for (size_t i = 0; i < witness->num_justice; ++i) {
+  for (size_t i = 0; i < witness->num_justice; ++i)
     Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
-  }
   return Q;
 }
 
