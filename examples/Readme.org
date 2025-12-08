@@ -1,0 +1,10 @@
+Here are some examples. Run them with ../bin/check.
+* Illustration of model preprocessing and witness postprocessing
+01_model.aag   04_factor_witness.aag
+02_forward.aag 05_forward_witness.aag
+03_factor.aag  06_witness.aag
+* Flexible mapping examples
+map_gate_model.aag map_gate_witness.aag
+latchToInput_model.aag latchToInput_witness.aag
+* Invalid witness with non stratified reset
+negated_reset_model.aag negated_reset_witness.aa
