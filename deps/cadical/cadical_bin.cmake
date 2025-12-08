@@ -1,5 +1,5 @@
 include(ExternalProject)
-set(CADICAL_GIT_TAG "0f9eea8e21bb75de570e1cc2fcd1196bc74470ac" CACHE STRING "CaDiCaL git commit hash or tag to checkout")
+set(CADICAL_GIT_TAG "master" CACHE STRING "CaDiCaL git commit hash or tag to checkout")
 
 if(STATIC)
   set(CADICAL_CONFIGURE_COMMAND ./configure -static)

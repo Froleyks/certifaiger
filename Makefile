@@ -7,8 +7,7 @@ all: build/Makefile
 build/Makefile: CMakeLists.txt
 	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build
 proof: CMakeLists.txt
-    # The latest release/master of CaDiCaL is missing important optimizations for certificate checking
-	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build -DSAT=cadical -DCADICAL_GIT_TAG="development" -DPROOF=ON
+	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build -DSAT=cadical -DCADICAL_GIT_TAG="master" -DPROOF=ON
 	$(MAKE) all
 container: clean
 	podman build -t $(name) .
