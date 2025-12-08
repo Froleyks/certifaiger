@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-FUZZER_OPTIONS='-2 -f -m -S -s'
-# FUZZER_OPTIONS='-2 -f -m -S'
+: "${FUZZER_OPTIONS:=-2 -f -m -S -s}"
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 bugs="$(pwd)"/bugs
 options="$(pwd)"/options

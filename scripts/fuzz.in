@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-FAILURES=1 # number of failures before exit
+: "${FAILURES:=1}" # number of failures before exit
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 random="$bin"/random
 for i in random; do
