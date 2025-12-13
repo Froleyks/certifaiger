@@ -304,18 +304,43 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
 unsigned
 WQ_intervention(const std::array<std::vector<unsigned>, times> &witness_map,
                 unsigned current, unsigned next) {
-  unsigned Q{1};
-  auto intervention_map = witness_map[current];
+  std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
+                                         INVALID_LIT);
+  auto map = [&intervention_map](unsigned from, unsigned to) {
+    assert(intervention_map[from] == INVALID_LIT);
+    intervention_map[from] = to;
+    intervention_map[aiger_not(from)] = aiger_not(to);
+  };
+  map(aiger_false, aiger_false);
+
+  // Map inputs and latches from current
+  for (size_t i = 0; i < witness->num_inputs; ++i) {
+    aiger_symbol *l = witness->inputs + i;
+    map(l->lit, witness_map[current][l->lit]);
+  }
   for (size_t i = 0; i < witness->num_latches; ++i) {
     aiger_symbol *l = witness->latches + i;
-    intervention_map[l->next] = witness_map[next][l->lit];
-    intervention_map[aiger_not(l->next)] = witness_map[next][aiger_not(l->lit)];
+    map(l->lit, witness_map[current][l->lit]);
   }
+  // TODO whats up with latches that have a next equal to lit?
+
+  // Intervene next literals to point to next state
+  for (size_t i = 0; i < witness->num_latches; ++i) {
+    aiger_symbol *l = witness->latches + i;
+    map(l->next, witness_map[next][l->lit]);
+  }
+
+  // Recompute ands
   for (int i = 0; i < witness->num_ands; ++i) {
     aiger_and *a = witness->ands + i;
-    intervention_map[a->lhs] =
-        gate(intervention_map[a->rhs0], intervention_map[a->rhs1]);
+    assert(intervention_map[a->rhs0] != INVALID_LIT);
+    assert(intervention_map[a->rhs1] != INVALID_LIT);
+    if (intervention_map[a->lhs] != INVALID_LIT) continue;
+    map(a->lhs, gate(intervention_map[a->rhs0], intervention_map[a->rhs1]));
+    // This function is whats wrong. At the very least I need to map not here
+    // but I should also generally think more what I want!
   }
+  unsigned Q{1};
   for (size_t i = 0; i < witness->num_justice; ++i)
     Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
   return Q;
