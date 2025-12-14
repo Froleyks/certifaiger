@@ -322,7 +322,6 @@ WQ_intervention(const std::array<std::vector<unsigned>, times> &witness_map,
     aiger_symbol *l = witness->latches + i;
     map(l->lit, witness_map[current][l->lit]);
   }
-  // TODO whats up with latches that have a next equal to lit?
 
   // Intervene next literals to point to next state
   for (size_t i = 0; i < witness->num_latches; ++i) {
@@ -337,8 +336,6 @@ WQ_intervention(const std::array<std::vector<unsigned>, times> &witness_map,
     assert(intervention_map[a->rhs1] != INVALID_LIT);
     if (intervention_map[a->lhs] != INVALID_LIT) continue;
     map(a->lhs, gate(intervention_map[a->rhs0], intervention_map[a->rhs1]));
-    // This function is whats wrong. At the very least I need to map not here
-    // but I should also generally think more what I want!
   }
   unsigned Q{1};
   for (size_t i = 0; i < witness->num_justice; ++i)
@@ -353,7 +350,9 @@ int main(int argc, char *argv[]) {
   const auto shared = read_shared();
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
-  unsigned WQ00 = WQ_intervention(map[0], 0, 0);
+  unsigned WQ10 = WQ_intervention(map[0], 1, 0);
+  unsigned WQ01 = WQ_intervention(map[0], 0, 1);
+  unsigned WQ12 = WQ_intervention(map[0], 1, 2);
   unsigned WQ02 = WQ_intervention(map[0], 0, 2);
 
   // Reset: RK0 ∧ C0 → RK0' ∧ C0'
@@ -383,24 +382,24 @@ int main(int argc, char *argv[]) {
   unsigned safety = imply(antecedent_safety, M[0].P);
   aiger_add_output(check, aiger_not(safety), "safety");
 
-  // Liveness: (C0 ∧ C0' ∧ P0') → (Q00' → Q01)
-  unsigned antecedent_liveness = gate(gate(M[0].C, W[0].C), W[0].P);
-  unsigned liveness = imply(antecedent_liveness, imply(WQ00, M[0].Q));
-  aiger_add_output(check, aiger_not(liveness), "liveness");
-
-  // Decrease: (C0' ∧ C1' ∧ P0' ∧ P1') → F01' → Q01'
+  // Decrease: (C0' ∧ C1' ∧ P0' ∧ P1') → F01' → Q10'
   unsigned antecedent_decrease =
       gate(gate(gate(W[0].C, W[1].C), W[0].P), W[1].P);
-  unsigned consequent_decrease = imply(W[0].F, W[0].Q);
+  unsigned consequent_decrease = imply(W[0].F, WQ10);
   unsigned decrease = imply(antecedent_decrease, consequent_decrease);
   aiger_add_output(check, aiger_not(decrease), "decrease");
 
   // Transitive: (C0' ∧ C1' ∧ C2' ∧ P0' ∧ P1' ∧ P2') → (Q01' ∧ Q12') → Q02'
   unsigned antecedent_transitive = gate(
       gate(gate(gate(gate(W[0].C, W[1].C), W[2].C), W[0].P), W[1].P), W[2].P);
-  unsigned consequent_transitive = imply(gate(W[0].Q, W[1].Q), WQ02);
+  unsigned consequent_transitive = imply(gate(WQ01, WQ12), WQ02);
   unsigned transitive = imply(antecedent_transitive, consequent_transitive);
   aiger_add_output(check, aiger_not(transitive), "transitive");
+
+  // Liveness: (C0 ∧ C0' ∧ P0') → (Q00' → Q01)
+  unsigned antecedent_liveness = gate(gate(M[0].C, W[0].C), W[0].P);
+  unsigned liveness = imply(antecedent_liveness, imply(W[0].Q, M[0].Q));
+  aiger_add_output(check, aiger_not(liveness), "liveness");
 
   finalize(check_path);
 }
