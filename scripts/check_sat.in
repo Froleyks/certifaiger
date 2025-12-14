@@ -16,7 +16,7 @@ head+=(0 0 0 0)
 
 echo $(basename "$0"): simulating trace "$2"
 "$aigsim" $MOVE_OUTPUT -w -2 "$1" "$2" >"$SIM"
-if grep -q 'Trace is a witness for: { b0' "$SIM"; then
+if grep -qE 'Trace is a witness for: { (b0|j0)' "$SIM"; then
     echo $(basename "$0"): Trace simulation passed
     exit 0
 else
