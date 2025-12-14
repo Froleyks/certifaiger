@@ -355,51 +355,62 @@ int main(int argc, char *argv[]) {
   unsigned WQ12 = WQ_intervention(map[0], 1, 2);
   unsigned WQ02 = WQ_intervention(map[0], 0, 2);
 
-  // Reset: RK0 ∧ C0 → RK0' ∧ C0'
-  unsigned antecedent_reset = gate(M[0].RK, M[0].C);
-  unsigned consequent_reset = gate(W[0].RK, W[0].C);
-  unsigned reset = imply(antecedent_reset, consequent_reset);
-  aiger_add_output(check, aiger_not(reset), "reset");
+  // Reset: R[K] ∧ C → R'[K] ∧ C'
+  unsigned reset_antecedent = gate(M[0].RK, M[0].C);
+  unsigned reset_consequent = gate(W[0].RK, W[0].C);
+  unsigned reset = imply(reset_antecedent, reset_consequent);
+  aiger_add_output(check, aiger_not(reset), "Reset");
 
-  // Transition: FK01 ∧ C0 ∧ C1 ∧ C0' → FK01' ∧ C1'
-  unsigned antecedent_trans = gate(gate(gate(M[0].FK, M[0].C), M[1].C), W[0].C);
-  unsigned consequent_trans = gate(W[0].FK, W[1].C);
-  unsigned transition = imply(antecedent_trans, consequent_trans);
-  aiger_add_output(check, aiger_not(transition), "transition");
+  // Transition: Fxy[K] ∧ Cx ∧ Cy ∧ C'x → F'xy[K] ∧ C'y
+  unsigned transition_antecedent =
+      gate(gate(gate(M[0].FK, M[0].C), M[1].C), W[0].C);
+  unsigned transition_consequent = gate(W[0].FK, W[1].C);
+  unsigned transition = imply(transition_antecedent, transition_consequent);
+  aiger_add_output(check, aiger_not(transition), "Transition");
 
-  // Base: R0' ∧ C0' → P0'
-  unsigned antecedent_base = gate(W[0].R, W[0].C);
-  unsigned base = imply(antecedent_base, W[0].P);
-  aiger_add_output(check, aiger_not(base), "base");
+  // Base: R'[L'] ∧ C'→ P'
+  unsigned base_antecedent = gate(W[0].R, W[0].C);
+  unsigned base_consequent = W[0].P;
+  unsigned base = imply(base_antecedent, base_consequent);
+  aiger_add_output(check, aiger_not(base), "Base");
 
-  // Step: P0'∧ F01' ∧ C0'∧ C1' → P1'
-  unsigned antecedent_step = gate(gate(gate(W[0].P, W[0].F), W[0].C), W[1].C);
-  unsigned step = imply(antecedent_step, W[1].P);
-  aiger_add_output(check, aiger_not(step), "step");
+  // Inductive: F'xy[L'] ∧ C'x ∧ C'y ∧ P'x → P'y
+  unsigned inductive_antecedent =
+      gate(gate(gate(W[0].F, W[0].C), W[1].C), W[0].P);
+  unsigned inductive_consequent = W[1].P;
+  unsigned inductive = imply(inductive_antecedent, inductive_consequent);
+  aiger_add_output(check, aiger_not(inductive), "Inductive");
 
-  // Safety: (C0 ∧ C0' ∧ P0') → P0
-  unsigned antecedent_safety = gate(gate(M[0].C, W[0].C), W[0].P);
-  unsigned safety = imply(antecedent_safety, M[0].P);
-  aiger_add_output(check, aiger_not(safety), "safety");
+  // Safety: C ∧ C' ∧ P' → P
+  unsigned safety_antecedent = gate(gate(M[0].C, W[0].C), W[0].P);
+  unsigned safety_consequent = M[0].P;
+  unsigned safety = imply(safety_antecedent, safety_consequent);
+  aiger_add_output(check, aiger_not(safety), "Safety");
 
-  // Decrease: (C0' ∧ C1' ∧ P0' ∧ P1') → F01' → Q10'
-  unsigned antecedent_decrease =
-      gate(gate(gate(W[0].C, W[1].C), W[0].P), W[1].P);
-  unsigned consequent_decrease = imply(W[0].F, WQ10);
-  unsigned decrease = imply(antecedent_decrease, consequent_decrease);
-  aiger_add_output(check, aiger_not(decrease), "decrease");
+  // Decrease: (∧i∈{x,y} C'i ∧  P'i) ∧ F'xy[L'] → Q'yx
+  unsigned decrease_guard{aiger_true};
+  for (unsigned i = 0; i < 2; ++i)
+    decrease_guard = gate(decrease_guard, gate(W[i].C, W[i].P));
+  unsigned decrease_antecedent = gate(decrease_guard, W[0].F);
+  unsigned decrease_consequent = WQ10;
+  unsigned decrease = imply(decrease_antecedent, decrease_consequent);
+  aiger_add_output(check, aiger_not(decrease), "Decrease");
 
-  // Transitive: (C0' ∧ C1' ∧ C2' ∧ P0' ∧ P1' ∧ P2') → (Q01' ∧ Q12') → Q02'
-  unsigned antecedent_transitive = gate(
-      gate(gate(gate(gate(W[0].C, W[1].C), W[2].C), W[0].P), W[1].P), W[2].P);
-  unsigned consequent_transitive = imply(gate(WQ01, WQ12), WQ02);
-  unsigned transitive = imply(antecedent_transitive, consequent_transitive);
-  aiger_add_output(check, aiger_not(transitive), "transitive");
+  // Transitive: (∧i∈{x,y,z} C'i ∧  P'i) ∧ Q'xy ∧ Q'yz → Q'xz
+  unsigned transitive_guard{aiger_true};
+  for (unsigned i = 0; i < 3; ++i)
+    transitive_guard = gate(transitive_guard, gate(W[i].C, W[i].P));
+  unsigned transitive_antecedent = gate(gate(transitive_guard, WQ01), WQ12);
+  unsigned transitive_consequent = WQ02;
+  unsigned transitive = imply(transitive_antecedent, transitive_consequent);
+  aiger_add_output(check, aiger_not(transitive), "Transitive");
 
-  // Liveness: (C0 ∧ C0' ∧ P0') → (Q00' → Q01)
-  unsigned antecedent_liveness = gate(gate(M[0].C, W[0].C), W[0].P);
-  unsigned liveness = imply(antecedent_liveness, imply(W[0].Q, M[0].Q));
-  aiger_add_output(check, aiger_not(liveness), "liveness");
+  // Liveness: C ∧ C' ∧ P' ∧ Q' → Q
+  unsigned liveness_antecedent =
+      gate(gate(gate(M[0].C, W[0].C), W[0].P), W[0].Q);
+  unsigned liveness_consequent = M[0].Q;
+  unsigned liveness = imply(liveness_antecedent, liveness_consequent);
+  aiger_add_output(check, aiger_not(liveness), "Liveness");
 
   finalize(check_path);
 }
