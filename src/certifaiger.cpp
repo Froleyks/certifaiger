@@ -326,7 +326,10 @@ WQ_intervention(const std::array<std::vector<unsigned>, times> &witness_map,
   // Intervene next literals to point to next state
   for (size_t i = 0; i < witness->num_latches; ++i) {
     aiger_symbol *l = witness->latches + i;
-    map(l->next, witness_map[next][l->lit]);
+    unsigned n = l->next;
+    if (!aiger_is_and(witness, n)) continue;
+    if (intervention_map[n] != INVALID_LIT) continue;
+    map(n, witness_map[next][l->lit]);
   }
 
   // Recompute ands
