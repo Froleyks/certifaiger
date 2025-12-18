@@ -327,7 +327,7 @@ WQ_intervention(const std::array<std::vector<unsigned>, times> &witness_map,
   for (size_t i = 0; i < witness->num_latches; ++i) {
     aiger_symbol *l = witness->latches + i;
     unsigned n = l->next;
-    if (!aiger_is_and(witness, n)) continue;
+    if (n < 2) continue; // no intervention on constants
     if (intervention_map[n] != INVALID_LIT) continue;
     map(n, witness_map[next][l->lit]);
   }
