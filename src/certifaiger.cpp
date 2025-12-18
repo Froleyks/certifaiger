@@ -353,10 +353,9 @@ int main(int argc, char *argv[]) {
   const auto shared = read_shared();
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
-  unsigned WQ10 = WQ_intervention(map[0], 1, 0);
-  unsigned WQ01 = WQ_intervention(map[0], 0, 1);
-  unsigned WQ12 = WQ_intervention(map[0], 1, 2);
-  unsigned WQ02 = WQ_intervention(map[0], 0, 2);
+  unsigned WQxy = WQ_intervention(map[0], 0, 1);
+  unsigned WQxz = WQ_intervention(map[0], 0, 2);
+  unsigned WQxx = WQ_intervention(map[0], 0, 0);
 
   // Reset: R[K] ∧ C → R'[K] ∧ C'
   unsigned reset_antecedent = gate(M[0].RK, M[0].C);
@@ -390,27 +389,27 @@ int main(int argc, char *argv[]) {
   unsigned safety = imply(safety_antecedent, safety_consequent);
   aiger_add_output(check, aiger_not(safety), "Safety");
 
-  // Decrease: (∧i∈{x,y} C'i ∧  P'i) ∧ F'xy[L'] → Q'yx
+  // Decrease: (∧i∈{x,y} C'i ∧  P'i) ∧ Q'
   unsigned decrease_guard{aiger_true};
   for (unsigned i = 0; i < 2; ++i)
     decrease_guard = gate(decrease_guard, gate(W[i].C, W[i].P));
-  unsigned decrease_antecedent = gate(decrease_guard, W[0].F);
-  unsigned decrease_consequent = WQ10;
+  unsigned decrease_antecedent = decrease_guard;
+  unsigned decrease_consequent = W[0].Q;
   unsigned decrease = imply(decrease_antecedent, decrease_consequent);
   aiger_add_output(check, aiger_not(decrease), "Decrease");
 
-  // Transitive: (∧i∈{x,y,z} C'i ∧  P'i) ∧ Q'xy ∧ Q'yz → Q'xz
+  // Transitive: (∧i∈{x,y,z} C'i ∧  P'i) ∧ Q'xy ∧ F'yz[L'] → Q'xz
   unsigned transitive_guard{aiger_true};
   for (unsigned i = 0; i < 3; ++i)
     transitive_guard = gate(transitive_guard, gate(W[i].C, W[i].P));
-  unsigned transitive_antecedent = gate(gate(transitive_guard, WQ01), WQ12);
-  unsigned transitive_consequent = WQ02;
+  unsigned transitive_antecedent = gate(gate(transitive_guard, WQxy), W[1].F);
+  unsigned transitive_consequent = WQxz;
   unsigned transitive = imply(transitive_antecedent, transitive_consequent);
   aiger_add_output(check, aiger_not(transitive), "Transitive");
 
-  // Liveness: C ∧ C' ∧ P' ∧ Q' → Q
+  // Liveness: C ∧ C' ∧ P' ∧ Q'xx → Q
   unsigned liveness_antecedent =
-      gate(gate(gate(M[0].C, W[0].C), W[0].P), W[0].Q);
+      gate(gate(gate(M[0].C, W[0].C), W[0].P), WQxx);
   unsigned liveness_consequent = M[0].Q;
   unsigned liveness = imply(liveness_antecedent, liveness_consequent);
   aiger_add_output(check, aiger_not(liveness), "Liveness");
