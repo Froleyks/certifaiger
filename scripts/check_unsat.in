@@ -10,13 +10,9 @@ for i in certifaiger sat_solver aigtocnf aigsplit; do
 done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <witness>" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
+: ${SEQUENTIAL:=false}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
-SEQUENTIAL=0
-if [[ $1 = "--seq" ]]; then
-    SEQUENTIAL=1
-    shift 1
-fi
 model="$1"
 witness="$2"
 check="${model##*/}"
@@ -57,12 +53,12 @@ sat() {
     rm -f "$proof"
 }
 
-CHECKS=(reset transition base step safety liveness decrease transitive)
+CHECKS=(reset transition base inductive safety decrease transitive liveness)
 PIDS=()
 for i in {0..7}; do
     name="${CHECKS[i]}"
     aig="split_o$i.aig"
-    if [ "$SEQUENTIAL" -eq 1 ]; then
+    if $SEQUENTIAL; then
         sat "$name" "$aig" || {
             echo $(basename "$0"): Certificate check failed.
             exit 1

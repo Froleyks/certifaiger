@@ -408,8 +408,7 @@ int main(int argc, char *argv[]) {
   aiger_add_output(check, aiger_not(transitive), "Transitive");
 
   // Liveness: C ∧ C' ∧ P' ∧ Q'xx → Q
-  unsigned liveness_antecedent =
-      gate(gate(gate(M[0].C, W[0].C), W[0].P), WQxx);
+  unsigned liveness_antecedent = gate(gate(gate(M[0].C, W[0].C), W[0].P), WQxx);
   unsigned liveness_consequent = M[0].Q;
   unsigned liveness = imply(liveness_antecedent, liveness_consequent);
   aiger_add_output(check, aiger_not(liveness), "Liveness");
