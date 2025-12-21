@@ -350,9 +350,9 @@ int main(int argc, char *argv[]) {
   const auto shared = read_shared();
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
-  unsigned WQxy = intervene_Q(model, map[1][0], map[1][1]);
-  unsigned MQxy = intervene_Q(witness, map[0][0], map[0][1]);
-  unsigned WQxz = intervene_Q(witness, map[0][0], map[0][1]);
+  unsigned MQxy = intervene_Q(model, map[1][0], map[1][1]);
+  unsigned WQxy = intervene_Q(witness, map[0][0], map[0][1]);
+  unsigned WQxz = intervene_Q(witness, map[0][0], map[0][2]);
   unsigned WQyx = intervene_Q(witness, map[0][1], map[0][0]);
 
   // Reset: R[K] ∧ C → R'[K] ∧ C'
