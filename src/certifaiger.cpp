@@ -397,13 +397,13 @@ int main(int argc, char *argv[]) {
   aiger_add_output(check, aiger_not(decrease), "Decrease");
 
   // Closure: (∧i∈{x,y,z} C'i ∧ P'i) ∧ Q'xy ∧ F'yz[L'] → Q'xz
-  unsigned transitive_guard{aiger_true};
+  unsigned closure_guard{aiger_true};
   for (unsigned i = 0; i < 3; ++i)
-    transitive_guard = gate(transitive_guard, gate(W[i].C, W[i].P));
-  unsigned transitive_antecedent = gate(gate(transitive_guard, WQxy), W[1].F);
-  unsigned transitive_consequent = WQxz;
-  unsigned transitive = imply(transitive_antecedent, transitive_consequent);
-  aiger_add_output(check, aiger_not(transitive), "Transitive");
+    closure_guard = gate(closure_guard, gate(W[i].C, W[i].P));
+  unsigned closure_antecedent = gate(gate(closure_guard, WQxy), W[1].F);
+  unsigned closure_consequent = WQxz;
+  unsigned closure = imply(closure_antecedent, closure_consequent);
+  aiger_add_output(check, aiger_not(closure), "Closure");
 
   // Liveness: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ Q'yx → Qxy
   unsigned liveness_guard{aiger_true};
