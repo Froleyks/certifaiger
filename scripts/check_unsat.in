@@ -53,7 +53,7 @@ sat() {
     rm -f "$proof"
 }
 
-CHECKS=(reset transition base inductive safety decrease transitive liveness)
+CHECKS=(reset transition base inductive safety decrease closure liveness)
 PIDS=()
 for i in {0..7}; do
     name="${CHECKS[i]}"
