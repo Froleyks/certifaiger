@@ -324,7 +324,7 @@ unsigned intervene_Q(const aiger *aig, const std::vector<unsigned> &current,
   // Intervene next literals to point to next state
   for (size_t i = 0; i < aig->num_latches; ++i) {
     aiger_symbol *l = aig->latches + i;
-    if (l->next < 2) continue; // no intervention on constants
+    if (aiger_is_constant(l->next)) continue; // no intervention on constants
     if (intervention_map[l->next] != INVALID_LIT) continue;
     map(l->next, next[l->lit]);
   }
