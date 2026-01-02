@@ -302,10 +302,10 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
 // Encodes the witness liveness predicate Q' at time ~current~ while replacing
 // next literals with the state literal in copy ~next~.
 unsigned intervene_Q(const aiger *aig, const std::vector<unsigned> &current,
-                     const std::vector<unsigned> &next) {
+                     const std::vector<unsigned> &next, bool map_inputs) {
   std::vector<unsigned> intervention_map(2 * (aig->maxvar + 1), INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
-    assert(intervention_map[from] == INVALID_LIT);
+    // assert(intervention_map[from] == INVALID_LIT);
     intervention_map[from] = to;
     intervention_map[aiger_not(from)] = aiger_not(to);
   };
@@ -322,11 +322,27 @@ unsigned intervene_Q(const aiger *aig, const std::vector<unsigned> &current,
   }
 
   // Intervene next literals to point to next state
-  for (size_t i = 0; i < aig->num_latches; ++i) {
+  std::vector<std::pair<unsigned, unsigned>> pairs;
+  pairs.reserve(aig->num_inputs + aig->num_latches);
+  if (map_inputs) {
+    const unsigned half_inputs = aig->num_inputs / 2;
+    for (size_t i = 0; i < half_inputs; ++i) {
+      aiger_symbol *c = aig->inputs + i;
+      aiger_symbol *n = aig->inputs + half_inputs + i;
+      pairs.emplace_back(c->lit, n->lit);
+    }
+  }
+  for (int i = 0; i < aig->num_latches; ++i) {
     aiger_symbol *l = aig->latches + i;
     if (aiger_is_constant(l->next)) continue; // no intervention on constants
-    if (intervention_map[l->next] != INVALID_LIT) continue;
-    map(l->next, next[l->lit]);
+    std::cout << "Latch " << l->lit << " next " << l->next << "\n";
+    pairs.emplace_back(l->lit, l->next);
+  }
+  for (auto [c, n] : pairs) {
+    // if (intervention_map[n] != INVALID_LIT) continue;
+    std::cout << "Intervening " << n << " <- " << c << " (" << next[c] << ")"
+              << "\n";
+    map(n, next[c]);
   }
 
   // Reencode and gates
