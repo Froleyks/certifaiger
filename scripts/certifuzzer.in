@@ -12,6 +12,9 @@ done
 [ $# -lt 1 ] && echo "usage: $(basename "$0") <model checker> [<cores>=8]" && exit 0
 cleanup() {
   echo
+  for pid in "${pids[@]}"; do
+    kill -- -"$pid" 2>/dev/null
+  done
   jobs -rp | xargs -r kill
   wait
   if ls "$bugs"/aag-*.aag >/dev/null 2>&1; then
@@ -32,6 +35,7 @@ trap 'cleanup' EXIT HUP INT QUIT TERM
 MC="$1"
 n=${2:-8}
 echo $(basename "$0"): fuzzing $(basename "$MC") with $n thredas
+pids=()
 old_bugs=$(ls "$bugs"/aag-*.aag 2>/dev/null | wc -l)
 if [ $old_bugs -gt 0 ]; then
   echo $(basename "$0"): "Warning: $old_bugs failure inducing inputs from previous runs found"
@@ -46,9 +50,10 @@ sed -i \
   "$options"
 i=0
 while [ $i -lt "$n" ]; do
-  "$fuzz" "$MC" &
-  fuzzer[${i}]=$!
+  setsid "$fuzz" "$MC" &
+  pids+=($!)
   ((i += 1))
 done
-"$status" &
-wait "${fuzzer[@]}"
+setsid "$status" &
+pids+=($!)
+wait "${pids[@]}"
