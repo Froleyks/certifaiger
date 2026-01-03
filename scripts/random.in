@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-: "${FUZZER_OPTIONS:=-2 -f -m -s -L}"
+: "${FUZZER_OPTIONS:=-2 -f -m -s}"
 : "${MC_TIMEOUT:=60}"
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 bugs="$(pwd)"/bugs
