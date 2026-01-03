@@ -136,55 +136,85 @@ const char *parse_num(const char *c, unsigned &value, const char *msg) {
   return end;
 }
 
-// There are three ways to get a mapping indicating the shared literals, in
-// order: 1) A MAPPING comment 2) Symbol table 3) Default mapping
-std::vector<std::pair<unsigned, unsigned>> read_shared() {
-  std::vector<std::pair<unsigned, unsigned>> shared;
-  bool found_mapping{};
-  unsigned num_mapped{}, w{}, m{};
+bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
+                          const char *keyword) {
+  assert(mapping.empty());
+  bool found{};
   const char *const *p = witness->comments;
   const char *c;
+  unsigned num_mapped{}, x{}, y{};
   for (; (c = *p++);)
-    if (!strncmp(c, "MAPPING ", 8)) {
-      parse_num(c + 8, num_mapped, "MAPPING requires number of mapped gates");
-      found_mapping = true;
+    if (!strncmp(c, keyword, strlen(keyword))) {
+      parse_num(c + 8, num_mapped, "requires number of mapped literals");
+      found = true;
       break;
     }
-  if (found_mapping) {
-    shared.reserve(num_mapped);
-    for (int i = 0; i < num_mapped; ++i) {
-      if (!(c = *p++))
-        std::cerr << "Mapping incomplete, expected " << num_mapped
-                  << " lines\n",
-            exit(1);
-      auto end = parse_num(c, w, "Invalid witness gate in mapping");
-      parse_num(end + 1, m, "Invalid model gate in mapping");
-      shared.emplace_back(m, w);
-    }
-    MSG << "Found mapping for " << num_mapped << " literals\n";
-    return shared;
+  if (!found) return false;
+  MSG << "Found " << keyword << "comment for " << num_mapped << " literals\n";
+  mapping.reserve(num_mapped);
+  for (int i = 0; i < num_mapped; ++i) {
+    if (!(c = *p++))
+      std::cerr << "Mapping incomplete, expected " << num_mapped << " lines\n",
+          exit(1);
+    auto end = parse_num(c, x, "Invalid witness gate in mapping");
+    parse_num(end + 1, y, "Invalid model gate in mapping");
+    mapping.emplace_back(x, y);
   }
+  return true;
+}
 
+bool read_mapping_symbols(std::vector<std::pair<unsigned, unsigned>> &mapping,
+                          const char symbol) {
+  assert(mapping.empty());
+  bool found{};
+  mapping.reserve(witness->num_inputs + witness->num_latches);
   for (unsigned i = 0; i < witness->num_inputs + witness->num_latches; ++i) {
-    const unsigned l = 2 * (i + 1);
-    const char *c = aiger_get_symbol(witness, l);
-    if (!c || !strlen(c) || c[0] != '=') continue;
-    parse_num(c + 2, m, "Invalid model gate in mapping");
-    found_mapping = true;
-    shared.emplace_back(m, l);
+    unsigned x = 2 * (i + 1), y{};
+    bool mapped{};
+    const char *c = aiger_get_symbol(witness, x);
+    if (!c) continue;
+    while (*c && !(mapped = *(c++) == symbol)) {}
+    if (!mapped) continue;
+    found = true;
+    parse_num(c, y, "Invalid right-hand side in literal mapping");
+    mapping.emplace_back(x, y);
   }
-  if (found_mapping) return shared;
+  if (!found) return false;
+  MSG << "Found symbol table mapping " << symbol << " for " << mapping.size()
+      << " literals\n";
+  return true;
+}
 
-  MSG << "No witness mapping found, using default\n";
-  const unsigned mapped_inputs =
-      std::min(model->num_inputs, witness->num_inputs);
-  const unsigned mapped_latches =
-      std::min(model->num_latches, witness->num_latches);
-  for (unsigned i = 0; i < mapped_inputs; ++i)
-    shared.emplace_back(model->inputs[i].lit, witness->inputs[i].lit);
-  for (unsigned i = 0; i < mapped_latches; ++i)
-    shared.emplace_back(model->latches[i].lit, witness->latches[i].lit);
-  return shared;
+// There are three ways to get a mapping indicating the shared literals
+// and interventions: 1) A MAPPING comment 2) Symbol table 3) Default mapping
+std::array<std::vector<std::pair<unsigned, unsigned>>, 2> read_mapping() {
+  std::vector<std::pair<unsigned, unsigned>> shared, interventions;
+  if (!read_mapping_comment(shared, "MAPPING ") &&
+      !read_mapping_symbols(shared, '=')) {
+    MSG << "No shared literals mapping found, using default\n";
+    const unsigned mapped_inputs =
+        std::min(model->num_inputs, witness->num_inputs);
+    const unsigned mapped_latches =
+        std::min(model->num_latches, witness->num_latches);
+    shared.reserve(mapped_inputs + mapped_latches);
+    for (unsigned i = 0; i < mapped_inputs; ++i)
+      shared.emplace_back(witness->inputs[i].lit, model->inputs[i].lit);
+    for (unsigned i = 0; i < mapped_latches; ++i)
+      shared.emplace_back(witness->latches[i].lit, model->latches[i].lit);
+  }
+
+  if (!read_mapping_comment(interventions, "INTERVENTION ") &&
+      !read_mapping_symbols(interventions, '<')) {
+    MSG << "No intervention mapping found, using default\n";
+    interventions.reserve(model->num_latches);
+    for (int i = 0; i < witness->num_latches; ++i) {
+      aiger_symbol *l = witness->latches + i;
+      if (aiger_is_constant(l->next)) continue;
+      interventions.emplace_back(l->lit, l->next);
+    }
+  }
+
+  return {shared, interventions};
 }
 
 // Create three copies of the merged witness and model circuits with latches
@@ -208,7 +238,7 @@ unroll(const std::vector<std::pair<unsigned, unsigned>> &shared) {
   for (unsigned t = 0; t < times; ++t) {
     for (unsigned c = 0; c < circuits; ++c) {
       if (c) { // map the shared latches already in the witness
-        for (auto [m, w] : shared) {
+        for (auto [w, m] : shared) {
           map[c][t][m] = map[0][t][w];
           map[c][t][aiger_not(m)] = map[0][t][aiger_not(w)];
         }
@@ -243,7 +273,7 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
   std::array<std::vector<aiger_symbol *>, circuits> K;
   K[0].reserve(shared.size());
   K[1].reserve(shared.size());
-  for (auto [m, w] : shared) {
+  for (auto [w, m] : shared) {
     if (auto *l = aiger_is_latch(witness, w)) K[0].push_back(l);
     if (auto *l = aiger_is_latch(model, m)) K[1].push_back(l);
   }
@@ -300,62 +330,44 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
 }
 
 // Encodes the witness liveness predicate Q' at time ~current~ while replacing
-// next literals with the state literal in copy ~next~.
-unsigned intervene_Q(const aiger *aig, const std::vector<unsigned> &current,
-                     const std::vector<unsigned> &next, bool map_inputs) {
-  std::vector<unsigned> intervention_map(2 * (aig->maxvar + 1), INVALID_LIT);
+// intervened literals with their corresponding values from time ~next~.
+unsigned
+intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
+            const std::vector<unsigned> &current,
+            const std::vector<unsigned> &next) {
+  std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
+                                         INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
-    // assert(intervention_map[from] == INVALID_LIT);
     intervention_map[from] = to;
     intervention_map[aiger_not(from)] = aiger_not(to);
   };
   map(aiger_false, aiger_false);
 
   // Map inputs and latches from current
-  for (size_t i = 0; i < aig->num_inputs; ++i) {
-    aiger_symbol *l = aig->inputs + i;
+  for (size_t i = 0; i < witness->num_inputs; ++i) {
+    aiger_symbol *l = witness->inputs + i;
     map(l->lit, current[l->lit]);
   }
-  for (size_t i = 0; i < aig->num_latches; ++i) {
-    aiger_symbol *l = aig->latches + i;
+  for (size_t i = 0; i < witness->num_latches; ++i) {
+    aiger_symbol *l = witness->latches + i;
     map(l->lit, current[l->lit]);
   }
 
-  // Intervene next literals to point to next state
-  std::vector<std::pair<unsigned, unsigned>> pairs;
-  pairs.reserve(aig->num_inputs + aig->num_latches);
-  if (map_inputs) {
-    const unsigned half_inputs = aig->num_inputs / 2;
-    for (size_t i = 0; i < half_inputs; ++i) {
-      aiger_symbol *c = aig->inputs + i;
-      aiger_symbol *n = aig->inputs + half_inputs + i;
-      pairs.emplace_back(c->lit, n->lit);
-    }
-  }
-  for (int i = 0; i < aig->num_latches; ++i) {
-    aiger_symbol *l = aig->latches + i;
-    if (aiger_is_constant(l->next)) continue; // no intervention on constants
-    std::cout << "Latch " << l->lit << " next " << l->next << "\n";
-    pairs.emplace_back(l->lit, l->next);
-  }
-  for (auto [c, n] : pairs) {
-    // if (intervention_map[n] != INVALID_LIT) continue;
-    std::cout << "Intervening " << n << " <- " << c << " (" << next[c] << ")"
-              << "\n";
+  // Intervene "next" literals to point to current in next state
+  for (auto [c, n] : interventions)
     map(n, next[c]);
-  }
 
   // Reencode and gates
-  for (int i = 0; i < aig->num_ands; ++i) {
-    aiger_and *a = aig->ands + i;
+  for (int i = 0; i < witness->num_ands; ++i) {
+    aiger_and *a = witness->ands + i;
     assert(intervention_map[a->rhs0] != INVALID_LIT);
     assert(intervention_map[a->rhs1] != INVALID_LIT);
     if (intervention_map[a->lhs] != INVALID_LIT) continue;
     map(a->lhs, gate(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
   unsigned Q{1};
-  for (size_t i = 0; i < aig->num_justice; ++i)
-    Q = gate(Q, aiger_not(intervention_map[aig->justice[i].lits[0]]));
+  for (size_t i = 0; i < witness->num_justice; ++i)
+    Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
   return Q;
 }
 
@@ -363,13 +375,12 @@ int main(int argc, char *argv[]) {
   auto check_path = initialize(argc, argv);
   if (!stratified(witness))
     std::cerr << "Witness resets not stratified\n", exit(1);
-  const auto shared = read_shared();
+  const auto [shared, interventions] = read_mapping();
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
-  unsigned MQxy = intervene_Q(model, map[1][0], map[1][1]);
-  unsigned WQxy = intervene_Q(witness, map[0][0], map[0][1]);
-  unsigned WQxz = intervene_Q(witness, map[0][0], map[0][2]);
-  unsigned WQyx = intervene_Q(witness, map[0][1], map[0][0]);
+  unsigned WQxy = intervene_Q(interventions, map[0][0], map[0][1]);
+  unsigned WQxz = intervene_Q(interventions, map[0][0], map[0][2]);
+  unsigned WQyx = intervene_Q(interventions, map[0][1], map[0][0]);
 
   // Reset: R[K] ∧ C → R'[K] ∧ C'
   unsigned reset_antecedent = gate(M[0].RK, M[0].C);
@@ -421,12 +432,12 @@ int main(int argc, char *argv[]) {
   unsigned closure = imply(closure_antecedent, closure_consequent);
   aiger_add_output(check, aiger_not(closure), "Closure");
 
-  // Liveness: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ Q'yx → Qxy
+  // Liveness: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ Q'yx → Qx
   unsigned liveness_guard{aiger_true};
   for (unsigned i = 0; i < 2; ++i)
     liveness_guard = gate(liveness_guard, gate(gate(M[i].C, W[i].C), W[i].P));
   unsigned liveness_antecedent = gate(gate(liveness_guard, W[0].F), WQyx);
-  unsigned liveness_consequent = MQxy;
+  unsigned liveness_consequent = M[0].Q;
   unsigned liveness = imply(liveness_antecedent, liveness_consequent);
   aiger_add_output(check, aiger_not(liveness), "Liveness");
 
