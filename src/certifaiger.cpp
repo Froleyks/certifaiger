@@ -332,11 +332,11 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
 // Encodes the witness liveness predicate Q' at time ~current~ while replacing
 // intervened literals with their corresponding values from time ~next~.
 unsigned
-intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
+intervene_Q(const aiger *aig,
+            const std::vector<std::pair<unsigned, unsigned>> &interventions,
             const std::vector<unsigned> &current,
             const std::vector<unsigned> &next) {
-  std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
-                                         INVALID_LIT);
+  std::vector<unsigned> intervention_map(2 * (aig->maxvar + 1), INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
     intervention_map[from] = to;
     intervention_map[aiger_not(from)] = aiger_not(to);
@@ -344,12 +344,12 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
   map(aiger_false, aiger_false);
 
   // Map inputs and latches from current
-  for (size_t i = 0; i < witness->num_inputs; ++i) {
-    aiger_symbol *l = witness->inputs + i;
+  for (size_t i = 0; i < aig->num_inputs; ++i) {
+    aiger_symbol *l = aig->inputs + i;
     map(l->lit, current[l->lit]);
   }
-  for (size_t i = 0; i < witness->num_latches; ++i) {
-    aiger_symbol *l = witness->latches + i;
+  for (size_t i = 0; i < aig->num_latches; ++i) {
+    aiger_symbol *l = aig->latches + i;
     map(l->lit, current[l->lit]);
   }
 
@@ -358,16 +358,16 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     map(n, next[c]);
 
   // Reencode and gates
-  for (int i = 0; i < witness->num_ands; ++i) {
-    aiger_and *a = witness->ands + i;
+  for (int i = 0; i < aig->num_ands; ++i) {
+    aiger_and *a = aig->ands + i;
     assert(intervention_map[a->rhs0] != INVALID_LIT);
     assert(intervention_map[a->rhs1] != INVALID_LIT);
     if (intervention_map[a->lhs] != INVALID_LIT) continue;
     map(a->lhs, gate(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
   unsigned Q{1};
-  for (size_t i = 0; i < witness->num_justice; ++i)
-    Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
+  for (size_t i = 0; i < aig->num_justice; ++i)
+    Q = gate(Q, aiger_not(intervention_map[aig->justice[i].lits[0]]));
   return Q;
 }
 
@@ -378,9 +378,16 @@ int main(int argc, char *argv[]) {
   const auto [shared, interventions] = read_mapping();
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
-  unsigned WQxy = intervene_Q(interventions, map[0][0], map[0][1]);
-  unsigned WQxz = intervene_Q(interventions, map[0][0], map[0][2]);
-  unsigned WQyx = intervene_Q(interventions, map[0][1], map[0][0]);
+  std::vector<std::pair<unsigned, unsigned>> latch_interventions;
+  latch_interventions.reserve(model->num_latches);
+  for (unsigned i = 0; i < model->num_latches; ++i) {
+    aiger_symbol *l = model->latches + i;
+    latch_interventions.emplace_back(l->lit, l->next);
+  }
+  unsigned MQxy = intervene_Q(model, latch_interventions, map[1][0], map[1][1]);
+  unsigned WQxy = intervene_Q(witness, interventions, map[0][0], map[0][1]);
+  unsigned WQxz = intervene_Q(witness, interventions, map[0][0], map[0][2]);
+  unsigned WQyx = intervene_Q(witness, interventions, map[0][1], map[0][0]);
 
   // Reset: R[K] ∧ C → R'[K] ∧ C'
   unsigned reset_antecedent = gate(M[0].RK, M[0].C);
@@ -432,12 +439,12 @@ int main(int argc, char *argv[]) {
   unsigned closure = imply(closure_antecedent, closure_consequent);
   aiger_add_output(check, aiger_not(closure), "Closure");
 
-  // Liveness: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ Q'yx → Qx
+  // Liveness: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ Q'yx → Qxy
   unsigned liveness_guard{aiger_true};
   for (unsigned i = 0; i < 2; ++i)
     liveness_guard = gate(liveness_guard, gate(gate(M[i].C, W[i].C), W[i].P));
   unsigned liveness_antecedent = gate(gate(liveness_guard, W[0].F), WQyx);
-  unsigned liveness_consequent = M[0].Q;
+  unsigned liveness_consequent = MQxy;
   unsigned liveness = imply(liveness_antecedent, liveness_consequent);
   aiger_add_output(check, aiger_not(liveness), "Liveness");
 
