@@ -14,3 +14,4 @@ The scripts (in increasing order of specificity to my workflow):
   Parses fuzz logfiles and prints the statistics
 - certifuzzer <model checker> [<cores>=8]
   Sets up the option fuzzing (requires --ranges to be implemented in the model check) and runs fuzz in parallel.
+- annotate <model> <witness> produces the combined witness check for an invalid witness and annotates it with the identified model. Requires no reencoding at aigtocnf.c:283.

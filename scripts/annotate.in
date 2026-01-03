@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# WARNING this requires a modified version of aigtocnf that does not reencode.
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+certifaiger="$bin"/certifaiger
+sat_solver="$bin/@SAT@"
+aigor="$bin"/aigor
+aigtocnf="$bin"/aigtocnf
+for i in certifaiger sat_solver aigor aigtocnf; do
+    [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
+done
+[ $# -lt 1 ] && echo "usage: $(basename "$0") <model> <witness>" && exit 0
+mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
+TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
+trap 'st=$?; rm -rf -- "$TMP"; exit "$st"' EXIT HUP INT QUIT TERM
+model="$1"
+witness="$2"
+shift 2
+check="${model##*/}"
+check="${check%.*}"
+check="${TMP}/check_${check}"
+echo $(basename "$0"): Checking witness circuit "$witness"
+$certifaiger "$model" "$witness" "$check"_m.aag "$@"
+certifaiger_exit=$?
+[ $certifaiger_exit -ne 0 ] && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit" >&2 && exit 1
+echo
+file="$check"_m.aag
+read -r _aag _M I L O _A < <(head -n 1 "$file")
+# Collect the output names (in order o0..o{O-1}) from the last lines.
+# We only keep the "name" part after the "oX ".
+mapfile -t names < <(
+    tail -n "$O" "$file" |
+        sed -E 's/^o[0-9]+[[:space:]]+//'
+)
+# Extract the O output literals: they start after header + I + L lines.
+# (In AIGER ASCII, outputs come immediately after inputs+ latches.)
+mapfile -t lits < <(
+    tail -n +"$((2 + I + L))" "$file" |
+        head -n "$O"
+)
+# Pair them up
+$aigor "$check"_m.aag "$check".aag
+
+$aigtocnf -m --no-coi --no-pg --no-xor --no-ite "$check".aag "$check".cnf
+$sat_solver --sat --quiet "$check".cnf >"$check".model
+[ $? -eq 20 ] && {
+    echo "$(basename "$0"): Certificate check passed."
+    exit 0
+}
+annotated="$(pwd)/$(basename "$model").check"
+awk '
+  NR==FNR {
+    if ($1=="v") {
+      for (i=2; i<=NF; i++) {
+        lit=$i
+        if (lit==0) continue
+        var = (lit<0 ? -lit : lit)
+        if (var==1) continue
+        val = (lit>0 ? 1 : 0)
+        aiger = 2*(var-1)
+        m[aiger]=val
+      }
+    } next
+  }
+  function litval(l, base, v) {
+    if (l==0) return 0
+    if (l==1) return 1
+    base = (l % 2 ? l-1 : l)
+    if (!(base in m)) return -1
+    v = m[base]
+    return (l % 2 ? 1-v : v)
+  }
+  # annotate .aag lines
+  {
+    if ($1 ~ /^[0-9]+$/) {
+      v = litval($1)
+      print v, $0
+    } else {
+      print $0
+    }
+  }
+' "$check".model "$check".aag >"$annotated"
+echo $(basename "$0"): Certificate check failed.
+for ((i = 0; i < O; i++)); do
+    printf '%s %s\n' "$(grep " ${lits[i]} " "$annotated")" "${names[i]}"
+done
+
+echo $(basename "$0"): "Annotated check in $(basename "$annotated")"
+exit 1
