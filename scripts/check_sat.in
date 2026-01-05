@@ -7,15 +7,31 @@ done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <trace>" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
-trap 'rm -rf "${TMP}"; exit' EXIT HUP INT QUIT TERM
-SIM=$TMP/sim_$(basename $1)
-head=$(head -n 1 $1)
+trap 'st=$?; rm -rf -- "${TMP}"; exit "$st"' EXIT HUP INT QUIT TERM
+model="$1"
+trace="$2"
+shift 2
+SIM=$TMP/sim_$(basename $model)
+head=$(head -n 1 $model)
 head=($head)
 head+=(0 0 0 0)
 ((${head[6]} == 0)) && MOVE_OUTPUT="-m"
 
-echo $(basename "$0"): simulating trace "$2"
-"$aigsim" $MOVE_OUTPUT -w -2 "$1" "$2" >"$SIM"
+for f in model trace; do
+    path="${!f}"
+    [ -f "$path" ] || {
+        echo "$(basename "$0"): Error: missing file $path" >&2
+        exit 1
+    }
+    echo "$(basename "$0"): $f $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
+done
+
+echo $(basename "$0"): simulating trace "$trace"
+t="$(date +%s%N)"
+"$aigsim" $MOVE_OUTPUT -w -2 "$model" "$trace" >"$SIM"
+t="$(($(date +%s%N) - t))"
+t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
+echo "$(basename "$0"): t_total: $t"
 if grep -qE 'Trace is a witness for: { (b0|j0)' "$SIM"; then
     echo $(basename "$0"): Trace simulation passed
     exit 0

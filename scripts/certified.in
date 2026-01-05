@@ -11,7 +11,7 @@ done
 
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
-trap 'rm -rf "${TMP}"; exit' EXIT HUP INT QUIT TERM
+trap 'st=$?; rm -rf -- "${TMP}"; exit "$st"' EXIT HUP INT QUIT TERM
 SEQUENTIAL=""
 if [[ $1 = "--seq" ]]; then
     SEQUENTIAL="--seq"

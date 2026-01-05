@@ -7,7 +7,7 @@ done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <trace>" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
-trap 'rm -rf "${TMP}"; exit' EXIT HUP INT QUIT TERM
+trap 'st=$?; rm -rf -- "${TMP}"; exit "$st"' EXIT HUP INT QUIT TERM
 SIM=$TMP/sim_$(basename $1)
 head=$(head -n 1 $1)
 head=($head)

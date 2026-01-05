@@ -10,7 +10,7 @@ done
 MC="$1"
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
-trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
+trap 'st=$?; rm -rf -- "${TMP}"; exit "$st"' EXIT HUP INT QUIT TERM
 
 log="$TMP/log"
 out="$TMP/out"

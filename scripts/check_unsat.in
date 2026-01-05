@@ -12,13 +12,23 @@ done
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 : ${SEQUENTIAL:=false}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
-trap 'rm -rf ${TMP}; exit' EXIT HUP INT QUIT TERM
+trap 'st=$?; rm -rf -- "${TMP}"; exit "$st"' EXIT HUP INT QUIT TERM
 model="$1"
 witness="$2"
 check="${model##*/}"
 check="${check%.*}"
 check="${TMP}/check_${check}"
 shift 2
+
+for f in model witness; do
+    path="${!f}"
+    [ -f "$path" ] || {
+        echo "$(basename "$0"): Error: missing file $path" >&2
+        exit 1
+    }
+    echo "$(basename "$0"): $f $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
+done
+
 echo $(basename "$0"): Checking witness circuit "$witness"
 $certifaiger "$model" "$witness" "$check".aig "$@"
 certifaiger_exit=$?
@@ -33,6 +43,8 @@ $aigsplit "$check".aig split_ || {
 
 sat() {
     echo Checking $1
+    local t
+    t="$(date +%s%N)"
     $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
     [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
     [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
@@ -42,6 +54,7 @@ sat() {
         exit 1
     fi
     if [ -n "$sat_checker" ]; then
+        echo "$(basename "$0"): proof $proof $(wc -l <"$proof") lines $(wc -c <"$proof") bytes"
         expected=0
         [ "$(basename "$sat_checker")" = "lrat-trim" ] && expected=20 && quiet=--quiet
         $sat_checker $quiet "${TMP}/$2.cnf" $proof
@@ -51,10 +64,14 @@ sat() {
         fi
     fi
     rm -f "$proof"
+    t="$(($(date +%s%N) - t))"
+    t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
+    echo "$(basename "$0"): t_$1: $t"
 }
 
 CHECKS=(reset transition base inductive safety decrease closure liveness)
 PIDS=()
+t="$(date +%s%N)"
 for i in {0..7}; do
     name="${CHECKS[i]}"
     aig="split_o$i.aig"
@@ -74,5 +91,8 @@ for pid in "${PIDS[@]}"; do
         exit 1
     }
 done
+t="$(($(date +%s%N) - t))"
+t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
+echo "$(basename "$0"): t_total: $t"
 
-echo "$(basename "$0"): Certificate check passed."
+echo "$(basename "$0"): Certificate check passed"
