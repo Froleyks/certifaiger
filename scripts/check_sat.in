@@ -17,14 +17,8 @@ head=($head)
 head+=(0 0 0 0)
 ((${head[6]} == 0)) && MOVE_OUTPUT="-m"
 
-for f in model trace; do
-    path="${!f}"
-    [ -f "$path" ] || {
-        echo "$(basename "$0"): Error: missing file $path" >&2
-        exit 1
-    }
-    echo "$(basename "$0"): $f $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
-done
+echo "$(basename "$0"): model $model $(wc -l <"$model") lines $(wc -c <"$model") bytes $(head -n 1 "$model")"
+echo "$(basename "$0"): trace $trace $(wc -l <"$trace") lines $(wc -c <"$trace") bytes"
 
 echo $(basename "$0"): simulating trace "$trace"
 t="$(date +%s%N)"
