@@ -5,7 +5,7 @@ all: build/Makefile
 	@cmake --build build --parallel
 	@cmake --install build --prefix .
 build/Makefile: CMakeLists.txt
-	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build
+	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -DCHECK=ON -B build
 proof: CMakeLists.txt
 	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build -DSAT=cadical -DCADICAL_GIT_TAG="master" -DPROOF=ON
 	$(MAKE) all

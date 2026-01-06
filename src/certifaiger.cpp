@@ -334,8 +334,8 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
   std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
                                          INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
-    intervention_map[from] = to;
-    intervention_map[aiger_not(from)] = aiger_not(to);
+    intervention_map.at(from) = to;
+    intervention_map.at(aiger_not(from)) = aiger_not(to);
   };
   map(aiger_false, aiger_false);
 
