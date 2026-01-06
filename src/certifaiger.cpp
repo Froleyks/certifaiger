@@ -10,15 +10,9 @@
 #include <vector>
 
 #include "aiger.h"
+namespace {
+
 constexpr unsigned INVALID_LIT = std::numeric_limits<unsigned>::max();
-
-#ifdef QUIET
-#define MSG \
-  if (0) std::cout
-#else
-#define MSG std::cout << "Certifaiger: "
-#endif
-
 constexpr unsigned circuits = 2; // W, M
 constexpr unsigned times = 3;    // t0, t1, t2
 aiger *model, *witness, *check;
@@ -67,8 +61,8 @@ const char *initialize(int argc, char *argv[]) {
             exit(1);
     }
   }
-  MSG << "Certify Model Checking Witnesses in AIGER\n";
-  MSG << VERSION << " " << GITID << "\n";
+  std::cout << "Certify Model Checking Witnesses in AIGER\n";
+  std::cout << VERSION << " " << GITID << "\n";
 
   return paths[2];
 }
@@ -150,7 +144,8 @@ bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
       break;
     }
   if (!found) return false;
-  MSG << "Found " << keyword << "comment for " << num_mapped << " literals\n";
+  std::cout << "Found " << keyword << "comment for " << num_mapped
+            << " literals\n";
   mapping.reserve(num_mapped);
   for (unsigned i = 0; i < num_mapped; ++i) {
     if (!(c = *p++))
@@ -181,8 +176,8 @@ bool read_mapping_symbols(std::vector<std::pair<unsigned, unsigned>> &mapping,
     mapping.emplace_back(x, y);
   }
   if (!found) return false;
-  MSG << "Found symbol table mapping " << symbol << " for " << mapping.size()
-      << " literals\n";
+  std::cout << "Found symbol table mapping " << symbol << " for "
+            << mapping.size() << " literals\n";
   return true;
 }
 
@@ -192,7 +187,7 @@ std::array<std::vector<std::pair<unsigned, unsigned>>, 2> read_mapping() {
   std::vector<std::pair<unsigned, unsigned>> shared, interventions;
   if (!read_mapping_comment(shared, "MAPPING ") &&
       !read_mapping_symbols(shared, '=')) {
-    MSG << "No shared literals mapping found, using default\n";
+    std::cout << "No shared literals mapping found, using default\n";
     const unsigned mapped_inputs =
         std::min(model->num_inputs, witness->num_inputs);
     const unsigned mapped_latches =
@@ -206,7 +201,7 @@ std::array<std::vector<std::pair<unsigned, unsigned>>, 2> read_mapping() {
 
   if (!read_mapping_comment(interventions, "INTERVENTION ") &&
       !read_mapping_symbols(interventions, '<')) {
-    MSG << "No intervention mapping found, using default\n";
+    std::cout << "No intervention mapping found, using default\n";
     interventions.reserve(model->num_latches);
     for (unsigned i = 0; i < witness->num_latches; ++i) {
       aiger_symbol *l = witness->latches + i;
@@ -370,6 +365,8 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
   return Q;
 }
+
+} // namespace
 
 int main(int argc, char *argv[]) {
   auto check_path = initialize(argc, argv);
