@@ -24,7 +24,7 @@ while true; do
     "$random" "$MC" >"$out"
     res=$?
     if [ $res -eq 0 ]; then
-        if grep -q 'check_unsat: Certificate check passed.' "$out"; then
+        if grep -q 'check_unsat: Certificate check passed' "$out"; then
             ((safe += 1))
         elif grep -q 'check_sat: Trace simulation passed' "$out"; then
             ((unsafe += 1))
