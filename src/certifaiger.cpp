@@ -28,12 +28,12 @@ struct predicates {
   unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1}, Q{1};
 };
 
-bool reencoded(const aiger *aig) {
+bool reencoded(const aiger *circuit) {
   unsigned l{};
-  for (unsigned i = 0; i < aig->num_inputs; ++i)
-    if (aig->inputs[i].lit != 2 * (++l)) return false;
-  for (unsigned i = 0; i < aig->num_latches; ++i)
-    if (aig->latches[i].lit != 2 * (++l)) return false;
+  for (unsigned i = 0; i < circuit->num_inputs; ++i)
+    if (circuit->inputs[i].lit != 2 * (++l)) return false;
+  for (unsigned i = 0; i < circuit->num_latches; ++i)
+    if (circuit->latches[i].lit != 2 * (++l)) return false;
   return true;
 }
 
@@ -48,7 +48,7 @@ const char *initialize(int argc, char *argv[]) {
   const char *paths[3] = {argv[2], argv[1], argc > 3 ? argv[3] : "check.aig"};
   check = aiger_init();
   aig = {witness = aiger_init(), model = aiger_init()};
-  for (int c = 0; c < circuits; ++c) {
+  for (unsigned c = 0; c < circuits; ++c) {
     if (const char *err = aiger_open_and_read_from_file(aig[c], paths[c]))
       std::cerr << "Error reading " << (c ? "model '" : "witness '") << paths[c]
                 << "': " << err << '\n',
@@ -60,7 +60,7 @@ const char *initialize(int argc, char *argv[]) {
           exit(1);
 
     if (aig[c]->num_fairness) std::cerr << "Fairness not supported\n", exit(1);
-    for (size_t i = 0; i < aig[c]->num_justice; ++i) {
+    for (unsigned i = 0; i < aig[c]->num_justice; ++i) {
       if (aig[c]->justice[i].size > 1)
         std::cerr << "Justice properties with more than one fairness "
                      "constraint not supported\n",
@@ -84,18 +84,18 @@ void finalize(const char *path) {
 // Checks if the circuit is stratified (no cyclic dependencies in the reset
 // definition) using Kahn. In addition to ands, latches have an edge to their
 // reset.
-bool stratified(const aiger *aig) {
-  const unsigned n = aig->maxvar + 1;
+bool stratified(const aiger *circuit) {
+  const unsigned n = circuit->maxvar + 1;
   std::vector<unsigned> in_degree(n);
   std::vector<unsigned> stack;
   stack.reserve(n);
-  for (int i = 0; i < aig->num_ands; ++i) {
-    aiger_and *a = aig->ands + i;
+  for (unsigned i = 0; i < circuit->num_ands; ++i) {
+    aiger_and *a = circuit->ands + i;
     in_degree[a->rhs0 >> 1]++;
     in_degree[a->rhs1 >> 1]++;
   }
-  for (int i = 0; i < aig->num_latches; ++i) {
-    aiger_symbol *l = aig->latches + i;
+  for (unsigned i = 0; i < circuit->num_latches; ++i) {
+    aiger_symbol *l = circuit->latches + i;
     if (l->reset != l->lit) in_degree[l->reset >> 1]++;
   }
   for (unsigned i = 0; i < n; ++i)
@@ -105,10 +105,10 @@ bool stratified(const aiger *aig) {
     unsigned l{stack.back()};
     stack.pop_back();
     visited++;
-    if (aiger_and *a = aiger_is_and(aig, l)) {
+    if (aiger_and *a = aiger_is_and(circuit, l)) {
       if (!--in_degree[a->rhs0 >> 1]) stack.push_back(a->rhs0);
       if (!--in_degree[a->rhs1 >> 1]) stack.push_back(a->rhs1);
-    } else if (aiger_symbol *lat = aiger_is_latch(aig, l)) {
+    } else if (aiger_symbol *lat = aiger_is_latch(circuit, l)) {
       if (lat->reset != lat->lit && !--in_degree[lat->reset >> 1])
         stack.push_back(lat->reset);
     }
@@ -152,7 +152,7 @@ bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
   if (!found) return false;
   MSG << "Found " << keyword << "comment for " << num_mapped << " literals\n";
   mapping.reserve(num_mapped);
-  for (int i = 0; i < num_mapped; ++i) {
+  for (unsigned i = 0; i < num_mapped; ++i) {
     if (!(c = *p++))
       std::cerr << "Mapping incomplete, expected " << num_mapped << " lines\n",
           exit(1);
@@ -208,7 +208,7 @@ std::array<std::vector<std::pair<unsigned, unsigned>>, 2> read_mapping() {
       !read_mapping_symbols(interventions, '<')) {
     MSG << "No intervention mapping found, using default\n";
     interventions.reserve(model->num_latches);
-    for (int i = 0; i < witness->num_latches; ++i) {
+    for (unsigned i = 0; i < witness->num_latches; ++i) {
       aiger_symbol *l = witness->latches + i;
       if (aiger_is_constant(l->next)) continue;
       interventions.emplace_back(l->lit, l->next);
@@ -318,7 +318,7 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
                                   aiger_not(map[c][t][aig[c]->outputs[i].lit]));
 
       // TODO fairness and justice
-      for (size_t i = 0; i < aig[c]->num_justice; ++i) {
+      for (unsigned i = 0; i < aig[c]->num_justice; ++i) {
         assert(aig[c]->justice[i].size == 1);
         predicates[c][t].Q =
             gate(predicates[c][t].Q,
@@ -345,11 +345,11 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
   map(aiger_false, aiger_false);
 
   // Map inputs and latches from current
-  for (size_t i = 0; i < witness->num_inputs; ++i) {
+  for (unsigned i = 0; i < witness->num_inputs; ++i) {
     aiger_symbol *l = witness->inputs + i;
     map(l->lit, current[l->lit]);
   }
-  for (size_t i = 0; i < witness->num_latches; ++i) {
+  for (unsigned i = 0; i < witness->num_latches; ++i) {
     aiger_symbol *l = witness->latches + i;
     map(l->lit, current[l->lit]);
   }
@@ -358,7 +358,7 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
   for (auto [c, n] : interventions) map(n, next[c]);
 
   // Reencode and gates
-  for (int i = 0; i < witness->num_ands; ++i) {
+  for (unsigned i = 0; i < witness->num_ands; ++i) {
     aiger_and *a = witness->ands + i;
     assert(intervention_map[a->rhs0] != INVALID_LIT);
     assert(intervention_map[a->rhs1] != INVALID_LIT);
@@ -366,7 +366,7 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     map(a->lhs, gate(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
   unsigned Q{1};
-  for (size_t i = 0; i < witness->num_justice; ++i)
+  for (unsigned i = 0; i < witness->num_justice; ++i)
     Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
   return Q;
 }
