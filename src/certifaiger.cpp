@@ -19,7 +19,9 @@ aiger *model, *witness, *check;
 std::array<aiger *, circuits> aig;
 unsigned maxvar{2};
 struct predicates {
-  unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1}, Q{1};
+  unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1};
+  std::vector<unsigned> Q;
+  unsigned N{1};
 };
 
 bool reencoded(const aiger *circuit) {
@@ -52,19 +54,17 @@ const char *initialize(int argc, char *argv[]) {
       std::cerr << "Error: " << (c ? "model '" : "witness '") << paths[c]
                 << "' is not reencoded\n",
           exit(1);
-
-    if (aig[c]->num_fairness) std::cerr << "Fairness not supported\n", exit(1);
-    for (unsigned i = 0; i < aig[c]->num_justice; ++i) {
-      if (aig[c]->justice[i].size > 1)
-        std::cerr << "Justice properties with more than one fairness "
-                     "constraint not supported\n",
-            exit(1);
-    }
+    // TODO
+    if (aig[c]->num_justice > 1)
+      std::cerr << "Only one justice property supported\n", exit(1);
+    if (aig[c]->num_justice && aig[c]->justice[0].size == 0)
+      std::cerr << "Justice property needs to have at least one signal\n",
+          exit(1);
   }
   std::cout << "Certify Model Checking Witnesses in AIGER\n";
   std::cout << VERSION << " " << GITID << "\n";
 
-  return paths[2];
+  return paths[1];
 }
 
 void finalize(const char *path) {
@@ -110,17 +110,20 @@ bool stratified(const aiger *circuit) {
   return visited == n;
 }
 
-unsigned gate(unsigned x, unsigned y) {
+unsigned conj(unsigned x, unsigned y) {
   assert(maxvar % 2 == 0);
   aiger_add_and(check, maxvar, x, y);
   maxvar += 2;
   return maxvar - 2;
 }
+unsigned disj(unsigned x, unsigned y) {
+  return aiger_not(conj(aiger_not(x), aiger_not(y)));
+}
 unsigned imply(unsigned x, unsigned y) {
-  return aiger_not(gate(x, aiger_not(y)));
+  return aiger_not(conj(x, aiger_not(y)));
 }
 unsigned equivalent(unsigned x, unsigned y) {
-  return gate(imply(x, y), imply(y, x));
+  return conj(imply(x, y), imply(y, x));
 }
 
 const char *parse_num(const char *c, unsigned &value, const char *msg) {
@@ -261,7 +264,7 @@ unroll(const std::vector<std::pair<unsigned, unsigned>> &shared) {
 
 // Encodes the predicates for model and witness at each time step of the
 // unrolling into the check circuit.
-// Returns predicates[circuit][time]{R, RK, F, FK, C, P, Q}
+// Returns predicates[circuit][time]{R, RK, F, FK, C, P, Q, N}
 std::array<std::array<predicates, times>, circuits> encode_predicates(
     const std::array<std::array<std::vector<unsigned>, times>, circuits> &map,
     const std::vector<std::pair<unsigned, unsigned>> &shared) {
@@ -279,56 +282,76 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
 
       for (auto l : K[c])
         predicates[c][t].RK =
-            gate(predicates[c][t].RK,
+            conj(predicates[c][t].RK,
                  equivalent(map[c][t][l->lit], map[c][t][l->reset]));
       for (unsigned i = 0; i < aig[c]->num_latches; ++i) {
         aiger_symbol *l = aig[c]->latches + i;
         predicates[c][t].R =
-            gate(predicates[c][t].R,
+            conj(predicates[c][t].R,
                  equivalent(map[c][t][l->lit], map[c][t][l->reset]));
       }
 
       if (t < times - 1) { // no transitions at last time step
         for (auto l : K[c])
           predicates[c][t].FK =
-              gate(predicates[c][t].FK,
+              conj(predicates[c][t].FK,
                    equivalent(map[c][t][l->next], map[c][t + 1][l->lit]));
         for (unsigned i = 0; i < aig[c]->num_latches; ++i) {
           aiger_symbol *l = aig[c]->latches + i;
           predicates[c][t].F =
-              gate(predicates[c][t].F,
+              conj(predicates[c][t].F,
                    equivalent(map[c][t][l->next], map[c][t + 1][l->lit]));
         }
       }
 
       for (unsigned i = 0; i < aig[c]->num_constraints; ++i)
         predicates[c][t].C =
-            gate(predicates[c][t].C, map[c][t][aig[c]->constraints[i].lit]);
+            conj(predicates[c][t].C, map[c][t][aig[c]->constraints[i].lit]);
 
       for (unsigned i = 0; i < aig[c]->num_bad; ++i)
         predicates[c][t].P =
-            gate(predicates[c][t].P, aiger_not(map[c][t][aig[c]->bad[i].lit]));
+            conj(predicates[c][t].P, aiger_not(map[c][t][aig[c]->bad[i].lit]));
       for (unsigned i = 0; i < aig[c]->num_outputs; ++i)
-        predicates[c][t].P = gate(predicates[c][t].P,
+        predicates[c][t].P = conj(predicates[c][t].P,
                                   aiger_not(map[c][t][aig[c]->outputs[i].lit]));
 
-      // TODO fairness and justice
-      for (unsigned i = 0; i < aig[c]->num_justice; ++i) {
-        assert(aig[c]->justice[i].size == 1);
-        predicates[c][t].Q =
-            gate(predicates[c][t].Q,
-                 aiger_not(map[c][t][aig[c]->justice[i].lits[0]]));
+      // TODO support multiple justice properties
+      assert(aig[c]->num_justice <= 1);
+      if (aig[c]->num_justice) {
+        const unsigned i = 0;
+
+        auto &Q = predicates[c][t].Q;
+        const bool witness_has_N =
+            !c && aig[0]->justice[i].size == aig[1]->justice[i].size + 1;
+        if (!witness_has_N &&
+            aig[0]->justice[i].size != aig[1]->justice[i].size)
+          std::cerr
+              << "Justice property size mismatch between witness and model\n",
+              exit(1);
+        Q.reserve(aig[c]->justice[i].size + aig[c]->num_fairness);
+        // The witness can encode N as the last signal in justice
+        for (unsigned j = 0; j < aig[c]->justice[i].size - witness_has_N; ++j)
+          Q.push_back(aiger_not(map[c][t][aig[c]->justice[i].lits[j]]));
+        // fairness is added to every Q
+        for (unsigned j = 0; j < aig[c]->num_fairness; ++j)
+          Q.push_back(aiger_not(map[c][t][aig[c]->fairness[j].lit]));
+        if (!c && witness->num_justice) // only witness has N
+          predicates[c][t].N =
+              map[c][t][aig[c]->justice[0].lits[aig[c]->justice[0].size - 1]];
       }
     }
   }
 
+  for (unsigned t = 0; t < times; ++t)
+    assert(predicates[0][t].Q.size() == predicates[1][t].Q.size());
+
   return predicates;
 }
 
-// Encodes the witness liveness predicate Q' at time ~current~ while replacing
+// Encodes the witness liveness predicate N' at time ~current~ while replacing
 // intervened literals with their corresponding values from time ~next~.
 unsigned
-intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
+intervene_N(const std::vector<std::pair<unsigned, unsigned>> &interventions,
             const std::vector<unsigned> &current,
             const std::vector<unsigned> &next) {
   std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
@@ -358,12 +381,12 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     assert(intervention_map[a->rhs0] != INVALID_LIT);
     assert(intervention_map[a->rhs1] != INVALID_LIT);
     if (intervention_map[a->lhs] != INVALID_LIT) continue;
-    map(a->lhs, gate(intervention_map[a->rhs0], intervention_map[a->rhs1]));
+    map(a->lhs, conj(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
-  unsigned Q{1};
-  for (unsigned i = 0; i < witness->num_justice; ++i)
-    Q = gate(Q, aiger_not(intervention_map[witness->justice[i].lits[0]]));
-  return Q;
+  unsigned N{1};
+  if (witness->num_justice)
+    N = witness->justice[0].lits[witness->justice[0].size - 1];
+  return N;
 }
 
 } // namespace
@@ -375,68 +398,86 @@ int main(int argc, char *argv[]) {
   const auto [shared, interventions] = read_mapping();
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
-  unsigned WQxy = intervene_Q(interventions, map[0][0], map[0][1]);
-  unsigned WQxz = intervene_Q(interventions, map[0][0], map[0][2]);
-  unsigned WQyx = intervene_Q(interventions, map[0][1], map[0][0]);
+  unsigned WNxy = intervene_N(interventions, map[0][0], map[0][1]);
+  unsigned WNxz = intervene_N(interventions, map[0][0], map[0][2]);
+  unsigned WNyx = intervene_N(interventions, map[0][1], map[0][0]);
 
   // Reset: R[K] ∧ C → R'[K] ∧ C'
-  unsigned reset_antecedent = gate(M[0].RK, M[0].C);
-  unsigned reset_consequent = gate(W[0].RK, W[0].C);
+  unsigned reset_antecedent = conj(M[0].RK, M[0].C);
+  unsigned reset_consequent = conj(W[0].RK, W[0].C);
   unsigned reset = imply(reset_antecedent, reset_consequent);
   aiger_add_output(check, aiger_not(reset), "Reset");
 
   // Transition: Fxy[K] ∧ Cx ∧ Cy ∧ C'x → F'xy[K] ∧ C'y
   unsigned transition_antecedent =
-      gate(gate(gate(M[0].FK, M[0].C), M[1].C), W[0].C);
-  unsigned transition_consequent = gate(W[0].FK, W[1].C);
+      conj(conj(conj(M[0].FK, M[0].C), M[1].C), W[0].C);
+  unsigned transition_consequent = conj(W[0].FK, W[1].C);
   unsigned transition = imply(transition_antecedent, transition_consequent);
   aiger_add_output(check, aiger_not(transition), "Transition");
 
   // Base: R'[L'] ∧ C'→ P'
-  unsigned base_antecedent = gate(W[0].R, W[0].C);
+  unsigned base_antecedent = conj(W[0].R, W[0].C);
   unsigned base_consequent = W[0].P;
   unsigned base = imply(base_antecedent, base_consequent);
   aiger_add_output(check, aiger_not(base), "Base");
 
   // Inductive: F'xy[L'] ∧ C'x ∧ C'y ∧ P'x → P'y
   unsigned inductive_antecedent =
-      gate(gate(gate(W[0].F, W[0].C), W[1].C), W[0].P);
+      conj(conj(conj(W[0].F, W[0].C), W[1].C), W[0].P);
   unsigned inductive_consequent = W[1].P;
   unsigned inductive = imply(inductive_antecedent, inductive_consequent);
   aiger_add_output(check, aiger_not(inductive), "Inductive");
 
-  // Safety: C ∧ C' ∧ P' → P
-  unsigned safety_antecedent = gate(gate(M[0].C, W[0].C), W[0].P);
-  unsigned safety_consequent = M[0].P;
-  unsigned safety = imply(safety_antecedent, safety_consequent);
-  aiger_add_output(check, aiger_not(safety), "Safety");
+  // Safe: C ∧ C' ∧ P' → P
+  unsigned safe_antecedent = conj(conj(M[0].C, W[0].C), W[0].P);
+  unsigned safe_consequent = M[0].P;
+  unsigned safe = imply(safe_antecedent, safe_consequent);
+  aiger_add_output(check, aiger_not(safe), "Safe");
 
-  // Decrease: (∧i∈{x,y} C'i ∧ P'i) ∧ F'xy[L'] → Q'xy
+  // Decrease: (∧i∈{x,y} C'i ∧ P'i) ∧ F'xy[L'] → N'xy
   unsigned decrease_guard{aiger_true};
   for (unsigned i = 0; i < 2; ++i)
-    decrease_guard = gate(decrease_guard, gate(W[i].C, W[i].P));
-  unsigned decrease_antecedent = gate(decrease_guard, W[0].F);
-  unsigned decrease_consequent = WQxy;
+    decrease_guard = conj(decrease_guard, conj(W[i].C, W[i].P));
+  unsigned decrease_antecedent = conj(decrease_guard, W[0].F);
+  unsigned decrease_consequent = WNxy;
   unsigned decrease = imply(decrease_antecedent, decrease_consequent);
   aiger_add_output(check, aiger_not(decrease), "Decrease");
 
-  // Closure: (∧i∈{x,y,z} C'i ∧ P'i) ∧ Q'xy ∧ F'yz[L'] → Q'xz
+  // Closure: (∧i∈{x,y,z} C'i ∧ P'i) ∧ N'xy ∧ F'yz[L'] → N'xz
   unsigned closure_guard{aiger_true};
   for (unsigned i = 0; i < 3; ++i)
-    closure_guard = gate(closure_guard, gate(W[i].C, W[i].P));
-  unsigned closure_antecedent = gate(gate(closure_guard, WQxy), W[1].F);
-  unsigned closure_consequent = WQxz;
+    closure_guard = conj(closure_guard, conj(W[i].C, W[i].P));
+  unsigned closure_antecedent = conj(conj(closure_guard, WNxy), W[1].F);
+  unsigned closure_consequent = WNxz;
   unsigned closure = imply(closure_antecedent, closure_consequent);
   aiger_add_output(check, aiger_not(closure), "Closure");
 
-  // Liveness: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ Q'yx → Qx
+  // Cover: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ N'yx → (∨q∈Q q'x)
   unsigned liveness_guard{aiger_true};
   for (unsigned i = 0; i < 2; ++i)
-    liveness_guard = gate(liveness_guard, gate(gate(M[i].C, W[i].C), W[i].P));
-  unsigned liveness_antecedent = gate(gate(liveness_guard, W[0].F), WQyx);
-  unsigned liveness_consequent = M[0].Q;
-  unsigned liveness = imply(liveness_antecedent, liveness_consequent);
-  aiger_add_output(check, aiger_not(liveness), "Liveness");
+    liveness_guard = conj(liveness_guard, conj(conj(M[i].C, W[i].C), W[i].P));
+  unsigned cover_antecedent = conj(conj(liveness_guard, W[0].F), WNyx);
+  unsigned cover_consequent{aiger_false};
+  for (const auto q : W[0].Q) cover_consequent = disj(cover_consequent, q);
+  unsigned cover = imply(cover_antecedent, cover_consequent);
+  aiger_add_output(check, aiger_not(cover), "Cover");
+
+  // Consistent: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ N'yx → (∧q∈Q q'x → q'y)
+  unsigned consistent_consequent{aiger_true};
+  const auto qsize = std::min(W[0].Q.size(), W[1].Q.size());
+  for (size_t i = 0; i < qsize; ++i)
+    consistent_consequent =
+        conj(consistent_consequent, imply(W[0].Q[i], W[1].Q[i]));
+  unsigned consistent = imply(cover_antecedent, consistent_consequent);
+  aiger_add_output(check, aiger_not(consistent), "Consistent");
+
+  // Live: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ N'yx → (∧q∈Q q'x → qx)
+  unsigned live_consequent{aiger_true};
+  const auto live_size = std::min(W[0].Q.size(), M[0].Q.size());
+  for (size_t i = 0; i < live_size; ++i)
+    live_consequent = conj(live_consequent, imply(W[0].Q[i], M[0].Q[i]));
+  unsigned live = imply(cover_antecedent, live_consequent);
+  aiger_add_output(check, aiger_not(live), "Live");
 
   finalize(check_path);
 }
