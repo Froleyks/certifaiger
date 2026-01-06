@@ -176,6 +176,7 @@ bool read_mapping_symbols(std::vector<std::pair<unsigned, unsigned>> &mapping,
     while (*c && !(mapped = *(c++) == symbol)) {}
     if (!mapped) continue;
     found = true;
+    while (*c && isspace(*c)) ++c;
     parse_num(c, y, "Invalid right-hand side in literal mapping");
     mapping.emplace_back(x, y);
   }
@@ -354,8 +355,7 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
   }
 
   // Intervene "next" literals to point to current in next state
-  for (auto [c, n] : interventions)
-    map(n, next[c]);
+  for (auto [c, n] : interventions) map(n, next[c]);
 
   // Reencode and gates
   for (int i = 0; i < witness->num_ands; ++i) {
