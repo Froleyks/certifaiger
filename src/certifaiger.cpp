@@ -365,6 +365,7 @@ unsigned
 intervene_N(const std::vector<std::pair<unsigned, unsigned>> &interventions,
             const std::vector<unsigned> &current,
             const std::vector<unsigned> &next, unsigned justice_index) {
+  if (justice_index >= witness->num_justice) return aiger_true;
   std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
                                          INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
@@ -394,13 +395,11 @@ intervene_N(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     if (intervention_map[a->lhs] != INVALID_LIT) continue;
     map(a->lhs, conj(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
-  unsigned N{aiger_true};
-  if (witness->num_justice) {
-    assert(justice_index < witness->num_justice);
-    const auto &justice = witness->justice[justice_index];
-    N = justice.lits[justice.size - 1];
-  }
-  return N;
+
+  assert(witness->justice[justice_index].size > 0);
+  return aiger_not(
+      intervention_map[witness->justice[justice_index]
+                           .lits[witness->justice[justice_index].size - 1]]);
 }
 
 } // namespace
