@@ -125,7 +125,7 @@ unsigned equivalent(unsigned x, unsigned y) {
 }
 
 const char *parse_num(const char *c, unsigned &value, const char *msg) {
-  auto [end, err] = std::from_chars(c, c + strlen(c), value);
+  auto [end, err] = std::from_chars(c, c + std::strlen(c), value);
   if (err != std::errc())
     std::cerr << "Error in " << c << ": " << msg << "\n", exit(1);
   return end;
@@ -140,8 +140,9 @@ bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
   const char *c;
   unsigned num_mapped{}, x{}, y{};
   for (; (c = *p++);)
-    if (!strncmp(c, keyword, strlen(keyword))) {
-      parse_num(c + 8, num_mapped, "requires number of mapped literals");
+    if (!strncmp(c, keyword, std::strlen(keyword))) {
+      parse_num(c + std::strlen(keyword), num_mapped,
+                "requires number of mapped literals");
       found = true;
       break;
     }
