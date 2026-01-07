@@ -82,26 +82,29 @@ bool stratified(const aiger *circuit) {
   stack.reserve(n);
   for (unsigned i = 0; i < circuit->num_ands; ++i) {
     aiger_and *a = circuit->ands + i;
-    in_degree[a->rhs0 >> 1]++;
-    in_degree[a->rhs1 >> 1]++;
+    in_degree[aiger_lit2var(a->rhs0)]++;
+    in_degree[aiger_lit2var(a->rhs1)]++;
   }
   for (unsigned i = 0; i < circuit->num_latches; ++i) {
     aiger_symbol *l = circuit->latches + i;
-    if (l->reset != l->lit) in_degree[l->reset >> 1]++;
+    if (l->reset != l->lit) in_degree[aiger_lit2var(l->reset)]++;
   }
   for (unsigned i = 0; i < n; ++i)
-    if (!in_degree[i]) stack.push_back(i << 1);
+    if (!in_degree[i]) stack.push_back(i);
   unsigned visited{};
   while (!stack.empty()) {
-    unsigned l{stack.back()};
+    unsigned l{aiger_var2lit(stack.back())};
     stack.pop_back();
     visited++;
     if (aiger_and *a = aiger_is_and(circuit, l)) {
-      if (!--in_degree[a->rhs0 >> 1]) stack.push_back(a->rhs0);
-      if (!--in_degree[a->rhs1 >> 1]) stack.push_back(a->rhs1);
+      unsigned x = aiger_lit2var(a->rhs0);
+      unsigned y = aiger_lit2var(a->rhs1);
+      if (!--in_degree[x]) stack.push_back(x);
+      if (!--in_degree[y]) stack.push_back(y);
     } else if (aiger_symbol *lat = aiger_is_latch(circuit, l)) {
-      if (lat->reset != lat->lit && !--in_degree[lat->reset >> 1])
-        stack.push_back(lat->reset);
+      unsigned r = aiger_lit2var(lat->reset);
+      if (lat->reset != lat->lit && !--in_degree[r])
+        stack.push_back(r);
     }
   }
   return visited == n;
