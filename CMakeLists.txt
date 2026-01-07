@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
+include(util.cmake)
 project(certifaiger VERSION 9.0.1)
+
 set(CMAKE_CXX_STANDARD 23)
 file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)
 file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
@@ -14,13 +16,12 @@ set_property(CACHE SAT PROPERTY STRINGS kissat cadical)
 option(STATIC "Build static binary" OFF)
 option(LTO "Enable Link-Time Optimization" OFF)
 option(STRICT "Enable strict compilation options" ON)
+option(CLANG "Use clang/clang++ compilers" OFF)
 
 # Runtime
 option(ASSERT "Enable runtime assertions (even in Release)" OFF)
 option(ASAN "Build with address sanitizer" OFF)
 option(UBSAN "Build with undefined behavior sanitizer" OFF)
-
-include(util.cmake)
 
 add_executable(certifaiger ${sources})
 util_add_options(certifaiger)

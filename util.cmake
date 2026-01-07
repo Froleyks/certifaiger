@@ -1,6 +1,13 @@
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INSTALL_MESSAGE NEVER)
 
+if(CLANG)
+  find_program(_CLANG clang REQUIRED)
+  find_program(_CLANGXX clang++ REQUIRED)
+  set(CMAKE_C_COMPILER "${_CLANG}" CACHE FILEPATH "C compiler" FORCE)
+  set(CMAKE_CXX_COMPILER "${_CLANGXX}" CACHE FILEPATH "C++ compiler" FORCE)
+endif()
+
 execute_process(
   COMMAND sh "-c" "git rev-parse --revs-only HEAD --"
   OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -23,33 +30,43 @@ function(util_add_options target)
 
   if(STRICT)
     set_property(TARGET ${target} PROPERTY CXX_EXTENSIONS OFF)
-    target_compile_options(
-      ${target}
-      PRIVATE -Werror
-              -Wall
-              -Wextra
-              -Wpedantic
-              -Wshadow
-              -Wconversion
-              -Wsign-conversion
-              -Wnull-dereference
-              -Wformat=2
-              -Wformat-security
-              -Wduplicated-cond
-              -Wduplicated-branches
-              -Wlogical-op
-              # aiger library does not comply
-              # -Wuseless-cast
-              # -Wold-style-cast
-              -Wnon-virtual-dtor
-              -Woverloaded-virtual
-              -Wcast-align=strict
-              -Wdouble-promotion
-              -Wmissing-declarations
-              $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
-              -Wundef
-              -Werror=return-type
-              -Werror=format-security)
+
+    set(_warn_common
+        -Werror
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wshadow
+        -Wconversion
+        -Wsign-conversion
+        -Wformat=2
+        -Wformat-security
+        -Wnon-virtual-dtor
+        -Woverloaded-virtual
+        -Wdouble-promotion
+        -Wmissing-declarations
+        $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
+        -Wundef
+        -Werror=return-type
+        -Werror=format-security)
+
+    set(_warn_gcc_only -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op
+                       -Wcast-align=strict)
+    set(_warn_clang
+        -Wnull-dereference # clang supports this too
+        -Wcast-align # clang doesn't have =strict
+        -Wextra-semi # common clang-only win
+        -Wimplicit-fallthrough # clang supports, GCC too, but keep here
+        -Wnewline-eof
+        -Wmissing-variable-declarations # useful on clang; may be noisy for libs
+        -Wthread-safety # only effective with annotations; harmless otherwise
+        -Wrange-loop-analysis)
+
+    if(CLANG)
+      target_compile_options(${target} PRIVATE ${_warn_common} ${_warn_clang})
+    else()
+      target_compile_options(${target} PRIVATE ${_warn_common} ${_warn_gcc_only})
+    endif()
   endif()
 
   if(ASSERT)
@@ -93,10 +110,12 @@ function(add_scripts)
   endforeach()
 endfunction()
 
-add_custom_target(
-  format_${PROJECT_NAME}
-  COMMAND clang-format -i ${sources} ${headers} || echo "clang-format not installed"
-  COMMAND cmake-format -i ${CMAKE_CURRENT_LIST_FILE} || echo "cmake-format not installed"
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  COMMENT "Formatting files")
-set_target_properties(format_${PROJECT_NAME} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+if(NOT TARGET format)
+  add_custom_target(
+    format
+    COMMAND clang-format -i ${sources} ${headers} || echo "clang-format not installed"
+    COMMAND cmake-format -i ${CMAKE_CURRENT_FUNCTION_LIST_FILE} || echo "cmake-format not installed"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Formatting files")
+  set_target_properties(format PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
