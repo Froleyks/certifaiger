@@ -20,7 +20,7 @@ constexpr unsigned circuits{2}; // W, M
 constexpr unsigned times{3};    // t0, t1, t2
 aiger *model, *witness, *check;
 std::array<aiger *, circuits> aig;
-unsigned maxvar{2};
+unsigned next_lit{2};
 struct predicates {
   unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1};
   std::vector<std::vector<unsigned>> Q;
@@ -108,10 +108,11 @@ bool stratified(const aiger *circuit) {
 }
 
 unsigned conj(unsigned x, unsigned y) {
-  assert(maxvar % 2 == 0);
-  aiger_add_and(check, maxvar, x, y);
-  maxvar += 2;
-  return maxvar - 2;
+  assert(next_lit % 2 == 0);
+  aiger_add_and(check, next_lit, x, y);
+  unsigned ret{next_lit};
+  next_lit += 2;
+  return ret;
 }
 unsigned disj(unsigned x, unsigned y) {
   return aiger_not(conj(aiger_not(x), aiger_not(y)));
@@ -242,17 +243,19 @@ unroll(const std::vector<std::pair<unsigned, unsigned>> &shared) {
       }
 
       for (unsigned l = 0; l < size[c]; l += 2) {
+        assert(next_lit % 2 == 0);
         if (map[c][t][l] != INVALID_LIT) continue;
         if (aiger_is_input(aig[c], l) || aiger_is_latch(aig[c], l))
-          aiger_add_input(check, maxvar, nullptr);
+          aiger_add_input(check, next_lit, nullptr);
         else if (aiger_and *a = aiger_is_and(aig[c], l)) {
           assert(map[c][t][a->rhs0] != INVALID_LIT);
           assert(map[c][t][a->rhs1] != INVALID_LIT);
-          aiger_add_and(check, maxvar, map[c][t][a->rhs0], map[c][t][a->rhs1]);
+          aiger_add_and(check, next_lit, map[c][t][a->rhs0],
+                        map[c][t][a->rhs1]);
         } else
           std::abort();
-        map[c][t][l] = maxvar++;
-        map[c][t][l + 1] = maxvar++;
+        map[c][t][l] = next_lit++;
+        map[c][t][l + 1] = next_lit++;
       }
     }
   }
