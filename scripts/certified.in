@@ -12,7 +12,7 @@ done
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
 TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX)
 trap 'st=$?; rm -rf -- "${TMP}"; exit "$st"' EXIT HUP INT QUIT TERM
-limit="${MC_TIMEOUT:+$MC_TIMEOUT}"
+limit="${MC_TIMEOUT:+timeout $MC_TIMEOUT}"
 
 MC="$1"
 MODEL="$2"
