@@ -103,8 +103,7 @@ bool stratified(const aiger *circuit) {
       if (!--in_degree[y]) stack.push_back(y);
     } else if (aiger_symbol *lat = aiger_is_latch(circuit, l)) {
       unsigned r = aiger_lit2var(lat->reset);
-      if (lat->reset != lat->lit && !--in_degree[r])
-        stack.push_back(r);
+      if (lat->reset != lat->lit && !--in_degree[r]) stack.push_back(r);
     }
   }
   return visited == n;
@@ -316,9 +315,11 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
       for (unsigned i = 0; i < aig[c]->num_bad; ++i)
         predicates[c][t].P =
             conj(predicates[c][t].P, aiger_not(map[c][t][aig[c]->bad[i].lit]));
-      for (unsigned i = 0; i < aig[c]->num_outputs; ++i)
-        predicates[c][t].P = conj(predicates[c][t].P,
-                                  aiger_not(map[c][t][aig[c]->outputs[i].lit]));
+      // if neither outputs nor justice is defined assume old aiger
+      if (!aig[c]->num_bad && !aig[c]->num_justice)
+        for (unsigned i = 0; i < aig[c]->num_outputs; ++i)
+          predicates[c][t].P = conj(
+              predicates[c][t].P, aiger_not(map[c][t][aig[c]->outputs[i].lit]));
 
       // Q size matches, additional justice in witness is ignored and fewer are
       // extended with aiger_true
