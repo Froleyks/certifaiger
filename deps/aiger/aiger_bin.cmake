@@ -1,5 +1,5 @@
 include(ExternalProject)
-set(AIGER_TOOLS aigtocnf aigsim aigfuzz aigdd aigtoaig aigor aigsplit aigfuzz)
+set(AIGER_TOOLS aigtocnf aigsim aigfuzz aigdd aigtoaig aigor aigsplit aigunfair)
 
 set(AIGER_DIR "${CMAKE_SOURCE_DIR}/../aiger" CACHE PATH "Path to a local aiger checkout")
 cmake_path(NORMAL_PATH AIGER_DIR)
