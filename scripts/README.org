@@ -4,12 +4,13 @@ They are copied to the bin directory by cmake, run them from there.
 The scripts (in increasing order of specificity to my workflow):
 - check <model> <witness>
   Calls certifaiger to generate the SAT formulas and asserts unsatisfiabilty using kissat.
-- certified <model checker> <model> [--mc_time=<limit>] [<model checker args>]
-  Runs the model checker and checks the resulting witness with check or aigsim.
+- certified <model checker> <model> [<model checker args>]
+  Runs the model checker and checks the resulting witness with check or aigsim. Respects environment variable MC_TIMEOUT.
 - random <model checker> [<seed>]
-  Generates a random model using aidfuzz and runs certified model checker
+  Generates a random model using aigfuzz with options FUZZER_OPTIONS and runs certified model checker.
 - fuzz <model checker>
   Repeatedly runs random and keeps track of some statistics.
+  Continues to run for FAILURES many invalid wertificates.
 - status
   Parses fuzz logfiles and prints the statistics
 - certifuzzer <model checker> [<cores>=8]

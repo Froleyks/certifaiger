@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-: "${FUZZER_OPTIONS:=-2 -f -m -s}"
-: "${MC_TIMEOUT:=60}"
+: "${FUZZER_OPTIONS:=-2 -f -s}"
+export MC_TIMEOUT="${MC_TIMEOUT:=60}"
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 bugs="$(pwd)"/bugs
 options="$(pwd)"/options
@@ -26,7 +26,7 @@ rm -f "$mod"
 [ -z $seed ] && seed=$(grep -a 'seed' "$mod" | head -1 | awk '{print $NF}')
 echo $(basename "$0"): seed $seed
 echo $(basename "$0"): $(head -n 1 "$mod")
-"$certified" --mc_time="$MC_TIMEOUT" "$MC" "$mod" && exit 0
+"$certified" "$MC" "$mod" && exit 0
 res=$?
 echo bug: $seed
 mkdir -p "$bugs"
