@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+limit="$bin"/limit
 certifaiger="$bin"/certifaiger
 sat_solver="$bin/@SAT@"
 [ -n "@SAT_CHECKER@" ] && sat_checker="$bin/@SAT_CHECKER@"
 aigtocnf="$bin"/aigtocnf
 aigsplit="$bin"/aigsplit
-for i in certifaiger sat_solver aigtocnf aigsplit; do
+for i in limit certifaiger sat_solver aigtocnf aigsplit; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <witness>" && exit 0
@@ -58,7 +59,8 @@ sat() {
     $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
     [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
     [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
-    $sat_solver --unsat --quiet $format "${TMP}/$2.cnf" $proof >/dev/null
+    $limit "$(basename $sat_solver)-$1" \
+        $sat_solver --unsat --quiet $format "${TMP}/$2.cnf" $proof >/dev/null
     if [ $? -ne 20 ]; then
         echo "Error: $1 check failed"
         exit 1
@@ -67,7 +69,8 @@ sat() {
         echo "$(basename "$0"): proof $proof $(wc -l <"$proof") lines $(wc -c <"$proof") bytes"
         expected=0
         [ "$(basename "$sat_checker")" = "lrat-trim" ] && expected=20 && quiet=--quiet
-        $sat_checker $quiet "${TMP}/$2.cnf" $proof
+        $limit $(basename $sat_checker)-$1 \
+            $sat_checker $quiet "${TMP}/$2.cnf" $proof
         if [ $? -ne $expected ]; then
             echo "Error: $1 proof check failed"
             exit 1

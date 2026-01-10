@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+limit="$bin"/limit
 aigsim="$bin"/aigsim
-for i in aigsim; do
+for i in limit aigsim; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <trace>" && exit 0
@@ -15,7 +16,8 @@ head+=(0 0 0 0)
 ((${head[6]} == 0)) && MOVE_OUTPUT="-m"
 
 echo $(basename "$0"): simulating trace "$2"
-"$aigsim" $MOVE_OUTPUT -w -2 "$1" "$2" >"$SIM"
+$limit "$(basename $aigsim)" \
+    "$aigsim" $MOVE_OUTPUT -w -2 "$1" "$2" >"$SIM"
 if grep -q 'Trace is a witness for: { b0' "$SIM"; then
     echo $(basename "$0"): produced valid trace
     exit 0

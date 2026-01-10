@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+runlim="$bin"/runlim
+for i in runlim; do
+    [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
+done
+[ $# -lt 1 ] && echo "usage: $(basename "$0") <executable>" && exit 0
+log="${LIMIT_LOG:+${LIMIT_LOG}-$1.run}"
+shift
+executable=$(basename "$1")
+
+echo "$(basename "$0") $executable to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
+
+$runlim --propagate --single \
+    ${LIMIT_LOG:+-o "$log"} \
+    ${TIME:+--real-time-limit="$TIME"} \
+    ${SPACE:+--space-limit="$SPACE"} \
+    $@

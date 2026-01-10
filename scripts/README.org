@@ -3,9 +3,9 @@ They are copied to the bin directory by cmake, run them from there.
 
 The scripts (in increasing order of specificity to my workflow):
 - check <model> <witness>
-  Calls certifaiger to generate the SAT formulas and asserts unsatisfiabilty using kissat.
+  Determins if sat or unsat witness and runs simulation or calls certifaiger to generate the SAT formulas and asserts unsatisfiabilty using kissat.
 - certified <model checker> <model> [<model checker args>]
-  Runs the model checker and checks the resulting witness with check or aigsim. Respects environment variable MC_TIMEOUT.
+  Runs the model checker and checks the resulting witness with check or aigsim.
 - random <model checker> [<seed>]
   Generates a random model using aigfuzz with options FUZZER_OPTIONS and runs certified model checker.
 - fuzz <model checker>
@@ -16,3 +16,5 @@ The scripts (in increasing order of specificity to my workflow):
 - certifuzzer <model checker> [<cores>=8]
   Sets up the option fuzzing (requires --ranges to be implemented in the model check) and runs fuzz in parallel.
 - annotate <model> <witness> produces the combined witness check for an invalid witness and annotates it with the identified model. Requires no reencoding at aigtocnf.c:283.
+
+For individual programs executions the environment variables TIME and SPACE are enforced by runlim.

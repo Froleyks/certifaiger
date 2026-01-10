@@ -33,11 +33,13 @@ target_link_libraries(certifaiger aiger)
 
 if(CHECK)
   include(deps/aiger/aiger_bin.cmake)
+  include(deps/runlim/runlim_bin.cmake)
   add_scripts(
     check
     check_unsat
     check_sat
     certified
+    limit
     random
     fuzz
     status
