@@ -39,6 +39,7 @@ $limit "$(basename $MC)" \
 res=${PIPESTATUS[0]}
 t="$(($(date +%s%N) - t))"
 t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
+echo "$(basename "$0"): t_mc: $t"
 echo $(basename "$0"): model checker exit code $res
 if [ $res -eq 2 ]; then
     echo $(basename "$0"): model checker timeout
