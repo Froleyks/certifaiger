@@ -34,7 +34,7 @@ LOG=$TMP/${NAME}.log
 
 echo $(basename "$0"): running "$MC" on "$MODEL"
 t="$(date +%s%N)"
-$limit "$(basename $MC)" \
+$limit mc \
     $MC "$MODEL" "$SAT" "$UNSAT" "$@" | tee "$LOG"
 res=${PIPESTATUS[0]}
 t="$(($(date +%s%N) - t))"

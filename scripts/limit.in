@@ -7,12 +7,12 @@ done
 [ $# -lt 1 ] && echo "usage: $(basename "$0") <executable>" && exit 0
 
 log=/dev/null
+name=$1
+shift
+
 [[ -n "${LIMIT_LOG:-}" ]] && log="${LIMIT_LOG}${1:+-$1}.run"
 
-shift
-executable=$(basename "$1")
-
-echo "$(basename "$0") $executable to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
+echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
 
 $runlim --propagate --single \
     -o "$log" \
