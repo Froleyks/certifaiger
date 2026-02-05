@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${SAT_OPTIONS:= --quiet --unsat}"
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 limit="$bin"/limit
 certifaiger="$bin"/certifaiger
@@ -60,7 +61,7 @@ sat() {
     [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
     [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
     $limit "$(basename $sat_solver)-$1" \
-        $sat_solver --unsat --quiet $format "${TMP}/$2.cnf" $proof >/dev/null
+        $sat_solver $SAT_OPTIONS $format "${TMP}/$2.cnf" $proof >/dev/null
     if [ $? -ne 20 ]; then
         echo "Error: $1 check failed"
         exit 1
