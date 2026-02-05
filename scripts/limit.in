@@ -10,7 +10,7 @@ log=/dev/null
 name=$1
 shift
 
-[[ -n "${LIMIT_LOG:-}" ]] && log="${LIMIT_LOG}${1:+-$1}.run"
+[[ -n "${LIMIT_LOG:-}" ]] && log="${LIMIT_LOG}$name.run"
 
 echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
 
