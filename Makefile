@@ -7,7 +7,7 @@ all: build/Makefile
 build/Makefile: CMakeLists.txt
 	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -DCHECK=ON -B build
 proof: CMakeLists.txt
-	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build -DSAT=cadical -DCADICAL_GIT_TAG="master" -DPROOF=ON
+	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build -DSAT=cadical -DCADICAL_GIT_TAG="master" -DCHECK=ON -DPROOF=ON
 	$(MAKE) all
 container: clean
 	podman build -t $(name) .

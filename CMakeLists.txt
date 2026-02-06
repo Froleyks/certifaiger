@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 23)
 file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)
 file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
 
-# Fetures
+# Features
 option(CHECK "Setup checking and fuzzing" OFF)
 option(PROOF "Check SAT solver proofs" OFF)
 set(SAT "kissat" CACHE STRING "SAT solver to use: kissat or cadical")
@@ -25,8 +25,9 @@ option(UBSAN "Build with undefined behavior sanitizer" OFF)
 
 add_executable(certifaiger ${sources})
 util_add_options(certifaiger)
-target_compile_options(certifaiger PRIVATE -DGITID="${GIT_ID}")
-target_compile_options(certifaiger PRIVATE -DVERSION="${PROJECT_VERSION}")
+target_compile_definitions(certifaiger PRIVATE
+  GITID="${GIT_ID}"
+  VERSION="${PROJECT_VERSION}")
 install(TARGETS certifaiger)
 include(deps/aiger/aiger_lib.cmake)
 target_link_libraries(certifaiger aiger)
@@ -34,18 +35,6 @@ target_link_libraries(certifaiger aiger)
 if(CHECK)
   include(deps/aiger/aiger_bin.cmake)
   include(deps/runlim/runlim_bin.cmake)
-  add_scripts(
-    check
-    check_unsat
-    check_sat
-    certified
-    limit
-    random
-    fuzz
-    status
-    certifuzzer
-    annotate)
-
   set(SAT_CHECKER "")
   if(SAT STREQUAL "kissat")
     include(deps/kissat/kissat_bin.cmake)
@@ -62,4 +51,15 @@ if(CHECK)
   else()
     message(WARNING "Not building SAT solver ${SAT}, place binary in bin directory")
   endif()
+  add_scripts(
+    check
+    check_unsat
+    check_sat
+    certified
+    limit
+    random
+    fuzz
+    status
+    certifuzzer
+    annotate)
 endif()
