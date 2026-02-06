@@ -5,6 +5,8 @@ limit="$bin"/limit
 certifaiger="$bin"/certifaiger
 sat_solver="$bin/@SAT@"
 [ -n "@SAT_CHECKER@" ] && sat_checker="$bin/@SAT_CHECKER@"
+echo "$(basename "$0"): Checking with SAT solver $(basename "$sat_solver") $SAT_OPTIONS"
+[ -n "$sat_checker" ] && echo "$(basename "$0"): Checking proofs with $(basename "$sat_checker")"
 aigtocnf="$bin"/aigtocnf
 aigsplit="$bin"/aigsplit
 for i in limit certifaiger sat_solver aigtocnf aigsplit; do
@@ -86,10 +88,6 @@ sat() {
 PIDS=()
 t="$(date +%s%N)"
 for aig in "$TMP"/*.aig; do
-    [ -e "$aig" ] || {
-        echo "$(basename "$0"): Error: no split AIG files found" >&2
-        exit 1
-    }
     [ "$aig" = "$check".aig ] && continue
     base="$(basename "$aig")"
     name="${base%.aig}"
