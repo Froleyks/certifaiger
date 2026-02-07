@@ -128,8 +128,10 @@ unsigned equivalent(unsigned x, unsigned y) {
 
 const char *parse_num(const char *c, unsigned &value, const char *msg) {
   auto [end, err] = std::from_chars(c, c + std::strlen(c), value);
-  if (err != std::errc())
-    std::cerr << "Error in " << c << ": " << msg << "\n", exit(1);
+  if (err != std::errc()) {
+    std::cerr << "Ignoring invalid " << msg << c << "\n";
+    return nullptr; // signal that this mapping was ignored
+  }
   return end;
 }
 
@@ -143,9 +145,8 @@ bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
   unsigned num_mapped{}, x{}, y{};
   for (; (c = *p++);)
     if (!strncmp(c, keyword, std::strlen(keyword))) {
-      parse_num(c + std::strlen(keyword), num_mapped,
-                "requires number of mapped literals");
-      found = true;
+      found = parse_num(c + std::strlen(keyword), num_mapped,
+                        "mapping comment missing number of mapped literals: ");
       break;
     }
   if (!found) return false;
@@ -153,11 +154,14 @@ bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
             << " literals\n";
   mapping.reserve(num_mapped);
   for (unsigned i = 0; i < num_mapped; ++i) {
-    if (!(c = *p++))
-      std::cerr << "Mapping incomplete, expected " << num_mapped << " lines\n",
-          exit(1);
-    auto end = parse_num(c, x, "Invalid witness gate in mapping");
-    parse_num(end + 1, y, "Invalid model gate in mapping");
+    if (!(c = *p++)) {
+      std::cerr << "Ignoring incomplete mapping" << num_mapped << " lines\n";
+      return false;
+    }
+    auto end = parse_num(c, x, "mapping due to witness literal");
+    if (!end) return false;
+    end = parse_num(end + 1, y, "mapping due to model literal");
+    if (!end) return false;
     mapping.emplace_back(x, y);
   }
   return true;
@@ -175,9 +179,10 @@ bool read_mapping_symbols(std::vector<std::pair<unsigned, unsigned>> &mapping,
     if (!c) continue;
     while (*c && !(mapped = *(c++) == symbol)) {}
     if (!mapped) continue;
-    found = true;
     while (*c && std::isspace(static_cast<unsigned char>(*c))) ++c;
-    parse_num(c, y, "Invalid right-hand side in literal mapping");
+    auto end = parse_num(c, y, "mapping in symbol table");
+    if (!end) continue;
+    found = true;
     mapping.emplace_back(x, y);
   }
   if (!found) return false;
@@ -190,6 +195,7 @@ bool read_mapping_symbols(std::vector<std::pair<unsigned, unsigned>> &mapping,
 // and interventions: 1) A MAPPING comment 2) Symbol table 3) Default mapping
 std::array<std::vector<std::pair<unsigned, unsigned>>, 2> read_mapping() {
   std::vector<std::pair<unsigned, unsigned>> shared, interventions;
+  std::cout << "Reading shared literal mapping\n";
   if (!read_mapping_comment(shared, "MAPPING ") &&
       !read_mapping_symbols(shared, '=')) {
     std::cout << "No shared literals mapping found, using default\n";
@@ -204,6 +210,7 @@ std::array<std::vector<std::pair<unsigned, unsigned>>, 2> read_mapping() {
       shared.emplace_back(witness->latches[i].lit, model->latches[i].lit);
   }
 
+  std::cout << "Reading transition literal mapping\n";
   if (!read_mapping_comment(interventions, "INTERVENTION ") &&
       !read_mapping_symbols(interventions, '<')) {
     std::cout << "No intervention mapping found, using default\n";
