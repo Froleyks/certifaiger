@@ -62,7 +62,7 @@ sat() {
     [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
     [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
     $limit "$1" \
-        $sat_solver $SAT_OPTIONS $format "${TMP}/$2.cnf" $proof >/dev/null
+        $sat_solver $SAT_OPTIONS $format "${TMP}/$2.cnf" $proof
     if [ $? -ne 20 ]; then
         echo "Error: $1 check failed"
         exit 1
