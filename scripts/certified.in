@@ -33,13 +33,9 @@ echo $(basename "$0"): writing witness to "$SAT" and "$UNSAT"
 LOG=$TMP/${NAME}.log
 
 echo $(basename "$0"): running "$MC" on "$MODEL"
-t="$(date +%s%N)"
 $limit mc \
     $MC "$MODEL" "$SAT" "$UNSAT" "$@" | tee "$LOG"
 res=${PIPESTATUS[0]}
-t="$(($(date +%s%N) - t))"
-t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
-echo "$(basename "$0"): t_mc: $t"
 echo $(basename "$0"): model checker exit code $res
 if [ $res -eq 2 ]; then
     echo $(basename "$0"): model checker timeout

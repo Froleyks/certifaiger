@@ -58,11 +58,10 @@ $aigsplit -n "$check".aig split_ || {
 sat() {
     echo Checking $1
     local t
-    t="$(date +%s%N)"
     $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
     [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
     [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
-    $limit "$(basename $sat_solver)-$1" \
+    $limit "$1" \
         $sat_solver $SAT_OPTIONS $format "${TMP}/$2.cnf" $proof >/dev/null
     if [ $? -ne 20 ]; then
         echo "Error: $1 check failed"
@@ -72,7 +71,7 @@ sat() {
         echo "$(basename "$0"): proof $proof $(wc -l <"$proof") lines $(wc -c <"$proof") bytes"
         expected=0
         [ "$(basename "$sat_checker")" = "lrat-trim" ] && expected=20 && quiet=--quiet
-        $limit $(basename $sat_checker)-$1 \
+        $limit "check-$1" \
             $sat_checker $quiet "${TMP}/$2.cnf" $proof
         if [ $? -ne $expected ]; then
             echo "Error: $1 proof check failed"
@@ -80,9 +79,6 @@ sat() {
         fi
     fi
     rm -f "$proof"
-    t="$(($(date +%s%N) - t))"
-    t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
-    echo "$(basename "$0"): t_$1: $t"
 }
 
 PIDS=()

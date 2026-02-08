@@ -14,8 +14,14 @@ shift
 
 echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
 
+t="$(date +%s%N)"
 $runlim --propagate --single \
     -o "$log" \
     ${TIME:+--real-time-limit="$TIME"} \
     ${SPACE:+--space-limit="$SPACE"} \
     $@
+res=$?
+t="$(($(date +%s%N) - t))"
+t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
+echo "t_$name: $t"
+exit $res
