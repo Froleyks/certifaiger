@@ -40,7 +40,7 @@ for f in model witness; do
         echo "$(basename "$0"): Error: missing file $path" >&2
         exit 1
     }
-    echo "$(basename "$0"): $f $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
+    echo "$(basename "$0"): size $f $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
 done
 
 echo $(basename "$0"): Checking witness circuit "$witness"
@@ -59,6 +59,10 @@ sat() {
     echo Checking $1
     local t
     $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
+    path="${TMP}/$2"
+    echo "$(basename "$0"): size $1 $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
+    path="${TMP}/$2.cnf"
+    echo "$(basename "$0"): size CNF $1 $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
     [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
     [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
     $limit "$1" \
@@ -68,7 +72,7 @@ sat() {
         exit 1
     fi
     if [ -n "$sat_checker" ]; then
-        echo "$(basename "$0"): proof $proof $(wc -l <"$proof") lines $(wc -c <"$proof") bytes"
+        echo "$(basename "$0"): size proof $proof $(wc -l <"$proof") lines $(wc -c <"$proof") bytes"
         expected=0
         [ "$(basename "$sat_checker")" = "lrat-trim" ] && expected=20 && quiet=--quiet
         $limit "check-$1" \
