@@ -7,6 +7,8 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <optional>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -129,43 +131,55 @@ unsigned equivalent(unsigned s, unsigned t) {
   return conj(imply(s, t), imply(t, s));
 }
 
-const char *parse_num(const char *c, unsigned &value, const char *msg) {
-  auto [end, err] = std::from_chars(c, c + std::strlen(c), value);
+std::optional<std::pair<unsigned, std::string_view>>
+parse_num(std::string_view c, const char *msg) {
+  const auto start = c.find_first_not_of(" \f\n\r\t\v");
+  if (start == std::string_view::npos) return std::nullopt;
+  c = c.substr(start);
+  unsigned value{};
+  auto [end, err] = std::from_chars(c.data(), c.data() + c.size(), value);
   if (err != std::errc()) {
     std::cerr << "Ignoring invalid " << msg << c << "\n";
-    return nullptr; // signal that this mapping was ignored
+    return std::nullopt;
   }
-  return end;
+  const auto offset = static_cast<std::string_view::size_type>(end - c.data());
+  return std::pair{value, c.substr(offset)};
 }
 
 bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
-                          const char *keyword) {
+                          std::string_view keyword) {
   assert(mapping.empty());
   if (!witness->comments) return false;
-  bool found{};
   const char *const *p = witness->comments;
-  const char *c;
-  unsigned num_mapped{}, s{}, t{};
-  for (; (c = *p++);)
-    if (!std::strncmp(c, keyword, std::strlen(keyword))) {
-      found = parse_num(c + std::strlen(keyword), num_mapped,
-                        "mapping comment missing number of mapped literals: ");
-      break;
-    }
+  bool found{};
+  unsigned num_mapped{};
+  for (const char *c; (c = *p++);) {
+    std::string_view line{c};
+    if (!line.starts_with(keyword)) continue;
+    found = true;
+    auto parsed_num =
+        parse_num(line.substr(keyword.size()),
+                  "mapping comment missing number of mapped literals: ");
+    if (!parsed_num) return false;
+    num_mapped = parsed_num->first;
+    break;
+  }
   if (!found) return false;
   std::cout << "Found " << keyword << "comment for " << num_mapped
             << " literals\n";
   mapping.reserve(num_mapped);
   for (unsigned i = 0; i < num_mapped; ++i) {
-    if (!(c = *p++)) {
+    const char *c = *p++;
+    if (!c) {
       std::cerr << "Ignoring incomplete mapping" << num_mapped << " lines\n";
       return false;
     }
-    auto end = parse_num(c, s, "mapping due to witness literal");
-    if (!end) return false;
-    end = parse_num(end + 1, t, "mapping due to model literal");
-    if (!end) return false;
-    mapping.emplace_back(s, t);
+    auto witness_lit = parse_num(c, "mapping due to witness literal");
+    if (!witness_lit) return false;
+    auto model_lit =
+        parse_num(witness_lit->second, "mapping due to model literal");
+    if (!model_lit) return false;
+    mapping.emplace_back(witness_lit->first, model_lit->first);
   }
   return true;
 }
@@ -176,17 +190,18 @@ bool read_mapping_symbols(std::vector<std::pair<unsigned, unsigned>> &mapping,
   bool found{};
   mapping.reserve(witness->num_inputs + witness->num_latches);
   for (unsigned i = 0; i < witness->num_inputs + witness->num_latches; ++i) {
-    unsigned s = 2 * (i + 1), t{};
+    unsigned s = 2 * (i + 1);
     bool mapped{};
     const char *c = aiger_get_symbol(witness, s);
     if (!c) continue;
-    while (*c && !(mapped = *(c++) == symbol)) {}
+    std::string_view name{c};
+    const auto pos = name.find(symbol);
+    mapped = pos != std::string_view::npos;
     if (!mapped) continue;
-    while (*c && std::isspace(static_cast<unsigned char>(*c))) ++c;
-    auto end = parse_num(c, t, "mapping in symbol table");
-    if (!end) continue;
+    auto literal = parse_num(name.substr(pos + 1), "mapping in symbol table");
+    if (!literal) continue;
     found = true;
-    mapping.emplace_back(s, t);
+    mapping.emplace_back(s, literal->first);
   }
   if (!found) return false;
   std::cout << "Found symbol table mapping " << symbol << " for "
