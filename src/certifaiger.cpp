@@ -7,7 +7,6 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
-#include <string>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -22,9 +21,8 @@ aiger *model, *witness, *check;
 std::array<aiger *, circuits> aig;
 unsigned next_lit{2};
 struct predicates {
-  unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1};
-  std::vector<std::vector<unsigned>> Q;
-  std::vector<unsigned> N;
+  unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1}, Qv{1};
+  std::vector<unsigned> Q;
 };
 
 bool reencoded(const aiger *circuit) {
@@ -97,10 +95,10 @@ bool stratified(const aiger *circuit) {
     stack.pop_back();
     visited++;
     if (aiger_and *a = aiger_is_and(circuit, l)) {
-      unsigned x = aiger_lit2var(a->rhs0);
-      unsigned y = aiger_lit2var(a->rhs1);
-      if (!--in_degree[x]) stack.push_back(x);
-      if (!--in_degree[y]) stack.push_back(y);
+      unsigned s = aiger_lit2var(a->rhs0);
+      unsigned t = aiger_lit2var(a->rhs1);
+      if (!--in_degree[s]) stack.push_back(s);
+      if (!--in_degree[t]) stack.push_back(t);
     } else if (aiger_symbol *lat = aiger_is_latch(circuit, l)) {
       unsigned r = aiger_lit2var(lat->reset);
       if (lat->reset != lat->lit && !--in_degree[r]) stack.push_back(r);
@@ -109,21 +107,26 @@ bool stratified(const aiger *circuit) {
   return visited == n;
 }
 
-unsigned conj(unsigned x, unsigned y) {
+unsigned conj(unsigned s, unsigned t) {
   assert(next_lit % 2 == 0);
-  aiger_add_and(check, next_lit, x, y);
+  aiger_add_and(check, next_lit, s, t);
   unsigned ret{next_lit};
   next_lit += 2;
   return ret;
 }
-unsigned disj(unsigned x, unsigned y) {
-  return aiger_not(conj(aiger_not(x), aiger_not(y)));
+template <typename... Rest>
+unsigned conj(unsigned s, unsigned t, unsigned u, Rest... rest) {
+  return conj(conj(s, t), u, rest...);
 }
-unsigned imply(unsigned x, unsigned y) {
-  return aiger_not(conj(x, aiger_not(y)));
+template <typename... Rest>
+unsigned disj(unsigned s, unsigned t, Rest... rest) {
+  return aiger_not(conj(aiger_not(s), aiger_not(t), aiger_not(rest)...));
 }
-unsigned equivalent(unsigned x, unsigned y) {
-  return conj(imply(x, y), imply(y, x));
+unsigned imply(unsigned s, unsigned t) {
+  return aiger_not(conj(s, aiger_not(t)));
+}
+unsigned equivalent(unsigned s, unsigned t) {
+  return conj(imply(s, t), imply(t, s));
 }
 
 const char *parse_num(const char *c, unsigned &value, const char *msg) {
@@ -142,9 +145,9 @@ bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
   bool found{};
   const char *const *p = witness->comments;
   const char *c;
-  unsigned num_mapped{}, x{}, y{};
+  unsigned num_mapped{}, s{}, t{};
   for (; (c = *p++);)
-    if (!strncmp(c, keyword, std::strlen(keyword))) {
+    if (!std::strncmp(c, keyword, std::strlen(keyword))) {
       found = parse_num(c + std::strlen(keyword), num_mapped,
                         "mapping comment missing number of mapped literals: ");
       break;
@@ -158,11 +161,11 @@ bool read_mapping_comment(std::vector<std::pair<unsigned, unsigned>> &mapping,
       std::cerr << "Ignoring incomplete mapping" << num_mapped << " lines\n";
       return false;
     }
-    auto end = parse_num(c, x, "mapping due to witness literal");
+    auto end = parse_num(c, s, "mapping due to witness literal");
     if (!end) return false;
-    end = parse_num(end + 1, y, "mapping due to model literal");
+    end = parse_num(end + 1, t, "mapping due to model literal");
     if (!end) return false;
-    mapping.emplace_back(x, y);
+    mapping.emplace_back(s, t);
   }
   return true;
 }
@@ -173,17 +176,17 @@ bool read_mapping_symbols(std::vector<std::pair<unsigned, unsigned>> &mapping,
   bool found{};
   mapping.reserve(witness->num_inputs + witness->num_latches);
   for (unsigned i = 0; i < witness->num_inputs + witness->num_latches; ++i) {
-    unsigned x = 2 * (i + 1), y{};
+    unsigned s = 2 * (i + 1), t{};
     bool mapped{};
-    const char *c = aiger_get_symbol(witness, x);
+    const char *c = aiger_get_symbol(witness, s);
     if (!c) continue;
     while (*c && !(mapped = *(c++) == symbol)) {}
     if (!mapped) continue;
     while (*c && std::isspace(static_cast<unsigned char>(*c))) ++c;
-    auto end = parse_num(c, y, "mapping in symbol table");
+    auto end = parse_num(c, t, "mapping in symbol table");
     if (!end) continue;
     found = true;
-    mapping.emplace_back(x, y);
+    mapping.emplace_back(s, t);
   }
   if (!found) return false;
   std::cout << "Found symbol table mapping " << symbol << " for "
@@ -238,8 +241,8 @@ unroll(const std::vector<std::pair<unsigned, unsigned>> &shared) {
   for (unsigned c = 0; c < circuits; ++c) {
     for (unsigned t = 0; t < times; ++t) {
       map[c][t].assign(size[c], INVALID_LIT);
-      map[c][t][0] = aiger_false;
-      map[c][t][1] = aiger_true;
+      map[c][t][0] = 0;
+      map[c][t][1] = 1;
     }
   }
 
@@ -328,75 +331,63 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
           predicates[c][t].P = conj(
               predicates[c][t].P, aiger_not(map[c][t][aig[c]->outputs[i].lit]));
 
-      // Q size matches, additional justice in witness is ignored and fewer are
-      // extended with aiger_true
-      predicates[c][t].Q.resize(model->num_justice);
-      for (unsigned just = 0; just < model->num_justice; ++just) {
-        auto &Q = predicates[c][t].Q[just];
-        const unsigned num_q_signals =
-            model->num_fairness + model->justice[just].size;
-        Q.resize(num_q_signals, aiger_true);
-        // fairness constraints are shared between all justice properties
-        // if the witness defines too few they are assumed to be constant true
-        const unsigned fairness_limit =
-            std::min(aig[c]->num_fairness, model->num_fairness);
-        for (unsigned fair = 0; fair < fairness_limit; ++fair)
-          Q[fair] = aiger_not(map[c][t][aig[c]->fairness[fair].lit]);
-        // if the witness doesn't define this justice property assume true
-        if (just >= aig[c]->num_justice) continue;
-
-        const unsigned justice_limit =
-            std::min(aig[c]->justice[just].size, model->justice[just].size);
-        for (unsigned lit = 0; lit < justice_limit; ++lit)
-          Q[model->num_fairness + lit] =
-              aiger_not(map[c][t][aig[c]->justice[just].lits[lit]]);
+      unsigned Q_size = model->num_fairness;
+      for (unsigned i = 0; i < model->num_justice; i++)
+        Q_size += model->justice[i].size;
+      predicates[c][t].Q.reserve(Q_size);
+      for (int i = 0; i < model->num_fairness; i++) {
+        unsigned lit{1};
+        if (i < aig[c]->num_fairness)
+          lit = aiger_not(map[c][t][aig[c]->fairness[i].lit]);
+        predicates[c][t].Q.push_back(lit);
       }
+      for (unsigned i = 0; i < model->num_justice; i++) {
+        for (unsigned j = 0; j < model->justice[i].size; j++) {
+          unsigned lit{1};
+          if (i < aig[c]->num_justice && j < aig[c]->justice[i].size)
+            lit = aiger_not(map[c][t][aig[c]->justice[i].lits[j]]);
+          predicates[c][t].Q.push_back(lit);
+        }
+      }
+      assert(predicates[c][t].Q.size() == Q_size);
 
-      predicates[c][t].N.resize(model->num_justice, aiger_true);
-      for (unsigned just = 0; just < model->num_justice; ++just) {
-        if (just >= aig[c]->num_justice) continue;
-        if (aig[c]->justice[just].size == 0) continue;
-        // The last literal of the justice property is always N
-        // it may or may not also be in Q
-        predicates[c][t].N[just] = aiger_not(
-            map[c][t]
-               [aig[c]->justice[just].lits[aig[c]->justice[just].size - 1]]);
+      unsigned fair{0};
+      for (unsigned i = 0; i < aig[c]->fairness[i].lit; i++)
+        fair = disj(fair, aiger_not(map[c][t][aig[c]->fairness[i].lit]));
+      for (int i = 0; i < aig[c]->num_justice; i++) {
+        unsigned liveness_closure{fair};
+        for (unsigned j = 0; j < aig[c]->justice[i].size; j++)
+          liveness_closure =
+              disj(liveness_closure,
+                   aiger_not(map[c][t][aig[c]->justice[i].lits[j]]));
+        predicates[c][t].Qv = conj(predicates[c][t].Qv, liveness_closure);
       }
     }
-  }
-
-  for (unsigned t = 0; t < times; ++t) {
-    assert(predicates[0][t].Q.size() == predicates[1][t].Q.size());
-    for (unsigned j = 0; j < predicates[0][t].Q.size(); ++j)
-      assert(predicates[0][t].Q[j].size() == predicates[1][t].Q[j].size());
   }
 
   return predicates;
 }
 
-// Encodes the witness liveness predicate N' at time ~current~ while replacing
-// intervened literals with their corresponding values from time ~next~.
+// Encodes lit in witness with interventions replaced with their next value.
 unsigned
-intervene_N(const std::vector<std::pair<unsigned, unsigned>> &interventions,
-            const std::vector<unsigned> &current,
-            const std::vector<unsigned> &next, unsigned justice_index) {
-  if (justice_index >= witness->num_justice) return aiger_true;
+intervene(const std::vector<std::pair<unsigned, unsigned>> &interventions,
+          unsigned lit, const std::vector<unsigned> &next) {
   std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
                                          INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
     intervention_map.at(from) = to;
     intervention_map.at(aiger_not(from)) = aiger_not(to);
   };
-  map(aiger_false, aiger_false);
+  map(0, 0);
 
   // Map inputs and latches from current
   for (unsigned i = 0; i < witness->num_inputs; ++i) {
     aiger_symbol *l = witness->inputs + i;
-    map(l->lit, current[l->lit]);
+    map(l->lit, l->lit);
   }
   for (unsigned i = 0; i < witness->num_latches; ++i) {
     aiger_symbol *l = witness->latches + i;
-    map(l->lit, current[l->lit]);
+    map(l->lit, l->lit);
   }
 
   // Intervene "next" literals to point to current in next state
@@ -411,10 +402,7 @@ intervene_N(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     map(a->lhs, conj(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
 
-  assert(witness->justice[justice_index].size > 0);
-  return aiger_not(
-      intervention_map[witness->justice[justice_index]
-                           .lits[witness->justice[justice_index].size - 1]]);
+  return intervention_map[lit];
 }
 
 } // namespace
@@ -433,100 +421,79 @@ int main(int argc, char *argv[]) {
     unsigned reset = imply(reset_antecedent, reset_consequent);
     aiger_add_output(check, aiger_not(reset), "Reset");
   }
-  { // Transition: Fxy[K] ∧ Cx ∧ Cy ∧ C'x → F'xy[K] ∧ C'y
-    unsigned transition_antecedent =
-        conj(conj(conj(M[0].FK, M[0].C), M[1].C), W[0].C);
+  { // Transition: Fst[K] ∧ Cs ∧ Ct ∧ C's → F'st[K] ∧ C't
+    unsigned transition_antecedent = conj(M[0].FK, M[0].C, M[1].C, W[0].C);
     unsigned transition_consequent = conj(W[0].FK, W[1].C);
     unsigned transition = imply(transition_antecedent, transition_consequent);
     aiger_add_output(check, aiger_not(transition), "Transition");
   }
+  { // Safety: P' ∧ C ∧ C' → P
+    unsigned safety_antecedent = conj(M[0].C, W[0].C, W[0].P);
+    unsigned safety_consequent = M[0].P;
+    unsigned safety = imply(safety_antecedent, safety_consequent);
+    aiger_add_output(check, aiger_not(safety), "Safety");
+  }
+  { // Liveness: ∧i∈{s,t}(Ci ∧ C'i ∧ P'i) ∧ F'_st[L'] → ∧q∈Q(q'st → qst)
+    unsigned live_guard{1};
+    for (unsigned i = 0; i < 2; ++i)
+      live_guard = conj(live_guard, M[i].C, W[i].C, W[i].P);
+    unsigned live_antecedent = conj(live_guard, W[0].F);
+    unsigned live_consequent{1};
+    assert(W[0].Q.size() == M[0].Q.size());
+    for (unsigned i = 0; i < W[0].Q.size(); i++)
+      live_consequent = conj(live_consequent, imply(W[0].Q[i], M[0].Q[i]));
+    unsigned live = imply(live_antecedent, live_consequent);
+    aiger_add_output(check, aiger_not(live), "Liveness");
+  }
+
   { // Base: R'[L'] ∧ C'→ P'
     unsigned base_antecedent = conj(W[0].R, W[0].C);
     unsigned base_consequent = W[0].P;
     unsigned base = imply(base_antecedent, base_consequent);
     aiger_add_output(check, aiger_not(base), "Base");
   }
-  { // Inductive: F'xy[L'] ∧ C'x ∧ C'y ∧ P'x → P'y
-    unsigned inductive_antecedent =
-        conj(conj(conj(W[0].F, W[0].C), W[1].C), W[0].P);
+  { // Inductive: F'st[L'] ∧ C's ∧ C't ∧ P's → P't
+    unsigned inductive_antecedent = conj(W[0].F, W[0].C, W[1].C, W[0].P);
     unsigned inductive_consequent = W[1].P;
     unsigned inductive = imply(inductive_antecedent, inductive_consequent);
     aiger_add_output(check, aiger_not(inductive), "Inductive");
   }
-  { // Safe: C ∧ C' ∧ P' → P
-    unsigned safe_antecedent = conj(conj(M[0].C, W[0].C), W[0].P);
-    unsigned safe_consequent = M[0].P;
-    unsigned safe = imply(safe_antecedent, safe_consequent);
-    aiger_add_output(check, aiger_not(safe), "Safe");
+
+  const unsigned Qts = intervene(interventions, W[1].Qv, map[0][0]);
+  const unsigned Qus = intervene(interventions, W[2].Qv, map[0][0]);
+  const unsigned Qut = intervene(interventions, W[2].Qv, map[0][1]);
+  { // Decrease: ∧i∈{s,t}(C'i ∧ P'i) ∧ F'st[L'] → Q'ts
+    unsigned decrease_guard{1};
+    for (unsigned i = 0; i < 2; ++i)
+      decrease_guard = conj(decrease_guard, W[i].C, W[i].P);
+    unsigned decrease_antecedent = conj(decrease_guard, W[0].F);
+    unsigned decrease_consequent = Qts;
+    unsigned decrease = imply(decrease_antecedent, decrease_consequent);
+    aiger_add_output(check, aiger_not(decrease), "Decrease");
   }
-
-  for (unsigned j = 0; j < model->num_justice; ++j) {
-    const std::vector<unsigned> &MQx = M[0].Q[j];
-    const std::vector<unsigned> &WQx = W[0].Q[j];
-    const std::vector<unsigned> &WQy = W[1].Q[j];
-    assert(MQx.size() <= std::numeric_limits<unsigned>::max());
-    const unsigned Q_size = static_cast<unsigned>(MQx.size());
-    assert(WQx.size() == Q_size && WQy.size() == Q_size);
-    const unsigned WNxy = intervene_N(interventions, map[0][0], map[0][1], j);
-    const unsigned WNxz = intervene_N(interventions, map[0][0], map[0][2], j);
-    const unsigned WNyx = intervene_N(interventions, map[0][1], map[0][0], j);
-    auto index = [j](const char *name) {
-      return std::string(name) + (j ? "_" + std::to_string(j) : "");
-    };
-
-    { // Decrease: (∧i∈{x,y} C'i ∧ P'i) ∧ F'xy[L'] → N'xy
-      unsigned decrease_guard{aiger_true};
-      for (unsigned i = 0; i < 2; ++i)
-        decrease_guard = conj(decrease_guard, conj(W[i].C, W[i].P));
-      unsigned decrease_antecedent = conj(decrease_guard, W[0].F);
-      unsigned decrease_consequent = WNxy;
-      unsigned decrease = imply(decrease_antecedent, decrease_consequent);
-      aiger_add_output(check, aiger_not(decrease), index("Decrease").c_str());
-    }
-    { // Closure: (∧i∈{x,y,z} C'i ∧ P'i) ∧ N'xy ∧ F'yz[L'] → N'xz
-      unsigned closure_guard{aiger_true};
-      for (unsigned i = 0; i < 3; ++i)
-        closure_guard = conj(closure_guard, conj(W[i].C, W[i].P));
-      unsigned closure_antecedent = conj(conj(closure_guard, WNxy), W[1].F);
-      unsigned closure_consequent = WNxz;
-      unsigned closure = imply(closure_antecedent, closure_consequent);
-      aiger_add_output(check, aiger_not(closure), index("Closure").c_str());
-    }
-    { // Cover: (∧i∈{x,y} C'i ∧ P'i) ∧ F'xy[L'] ∧ N'yx → (∨q∈Q q'x)
-      unsigned cover_guard{aiger_true};
-      for (unsigned i = 0; i < 2; ++i)
-        cover_guard = conj(cover_guard, conj(W[i].C, W[i].P));
-      unsigned cover_antecedent = conj(conj(cover_guard, W[0].F), WNyx);
-      unsigned cover_consequent{aiger_false};
-      for (const auto q : WQx) cover_consequent = disj(cover_consequent, q);
-      unsigned cover = imply(cover_antecedent, cover_consequent);
-      aiger_add_output(check, aiger_not(cover), index("Cover").c_str());
-    }
-    { // Consistent: (∧i∈{x,y} C'i ∧ P'i) ∧ F'xy[L'] ∧ N'yx → (∧q∈Q q'x → q'y)
-      unsigned consistent_guard{aiger_true};
-      for (unsigned i = 0; i < 2; ++i)
-        consistent_guard = conj(consistent_guard, conj(W[i].C, W[i].P));
-      unsigned consistent_antecedent =
-          conj(conj(consistent_guard, W[0].F), WNyx);
-      unsigned consistent_consequent{aiger_true};
-      for (unsigned i = 0; i < Q_size; ++i)
-        consistent_consequent =
-            conj(consistent_consequent, imply(WQx[i], WQy[i]));
-      unsigned consistent = imply(consistent_antecedent, consistent_consequent);
-      aiger_add_output(check, aiger_not(consistent),
-                       index("Consistent").c_str());
-    }
-    { // Live: (∧i∈{x,y} Ci ∧ C'i ∧ P'i) ∧ F'xy[L'] ∧ N'yx → (∧q∈Q q'x → qx)
-      unsigned live_guard{aiger_true};
-      for (unsigned i = 0; i < 2; ++i)
-        live_guard = conj(live_guard, conj(conj(M[i].C, W[i].C), W[i].P));
-      unsigned live_antecedent = conj(conj(live_guard, W[0].F), WNyx);
-      unsigned live_consequent{aiger_true};
-      for (unsigned i = 0; i < Q_size; ++i)
-        live_consequent = conj(live_consequent, imply(WQx[i], MQx[i]));
-      unsigned live = imply(live_antecedent, live_consequent);
-      aiger_add_output(check, aiger_not(live), index("Live").c_str());
-    }
+  { // Closure: ∧i∈{s,t,u}(C'i ∧ P'i) ∧ F'st[L'] ∧ Q'ut → Q'us
+    unsigned closure_guard{1};
+    for (unsigned i = 0; i < 3; ++i)
+      closure_guard = conj(closure_guard, W[i].C, W[i].P);
+    unsigned closure_antecedent = conj(closure_guard, W[0].F, Qut);
+    unsigned closure_consequent = Qus;
+    unsigned closure = imply(closure_antecedent, closure_consequent);
+    aiger_add_output(check, aiger_not(closure), "Closure");
+  }
+  { // Consistent: ∧i∈{s,t,u}(C'i ∧ P'i) ∧ F'st[L'] ∧ F'tu[L']
+    // ∧ Q'st ∧ Q'tu → ∧q∈Q(q'st → q'tu)
+    unsigned consistent_guard{1};
+    for (unsigned i = 0; i < 3; ++i)
+      consistent_guard = conj(consistent_guard, W[i].C, W[i].P);
+    unsigned consistent_antecedent =
+        conj(consistent_guard, W[0].F, W[1].F, W[0].Qv, W[1].Qv);
+    unsigned consistent_consequent{1};
+    assert(W[0].Q.size() == W[1].Q.size());
+    for (unsigned i = 0; i < W[0].Q.size(); i++)
+      consistent_consequent =
+          conj(consistent_consequent, imply(W[0].Q[i], W[1].Q[i]));
+    unsigned consistent = imply(consistent_antecedent, consistent_consequent);
+    aiger_add_output(check, aiger_not(consistent), "Consistent");
   }
 
   finalize(check_path);
