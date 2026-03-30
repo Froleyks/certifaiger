@@ -352,7 +352,7 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
       assert(predicates[c][t].Q.size() == Q_size);
 
       unsigned fair{0};
-      for (unsigned i = 0; i < aig[c]->fairness[i].lit; i++)
+      for (unsigned i = 0; i < aig[c]->num_fairness; i++)
         fair = disj(fair, aiger_not(map[c][t][aig[c]->fairness[i].lit]));
       for (unsigned i = 0; i < aig[c]->num_justice; i++) {
         unsigned liveness_closure{fair};
