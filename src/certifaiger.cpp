@@ -23,7 +23,7 @@ aiger *model, *witness, *check;
 std::array<aiger *, circuits> aig;
 unsigned next_lit{2};
 struct predicates {
-  unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1}, Qv{1};
+  unsigned R{1}, RK{1}, F{1}, FK{1}, C{1}, P{1};
   std::vector<unsigned> Q;
 };
 
@@ -365,28 +365,18 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
         }
       }
       assert(predicates[c][t].Q.size() == Q_size);
-
-      unsigned fair{0};
-      for (unsigned i = 0; i < aig[c]->num_fairness; i++)
-        fair = disj(fair, aiger_not(map[c][t][aig[c]->fairness[i].lit]));
-      for (unsigned i = 0; i < aig[c]->num_justice; i++) {
-        unsigned liveness_closure{fair};
-        for (unsigned j = 0; j < aig[c]->justice[i].size; j++)
-          liveness_closure =
-              disj(liveness_closure,
-                   aiger_not(map[c][t][aig[c]->justice[i].lits[j]]));
-        predicates[c][t].Qv = conj(predicates[c][t].Qv, liveness_closure);
-      }
     }
   }
 
   return predicates;
 }
 
-// Encodes lit in witness with interventions replaced with their next value.
+// Encodes the witness rank at time `current` with interventions
+// replaced by their corresponding values from time `next`.
 unsigned
-intervene(const std::vector<std::pair<unsigned, unsigned>> &interventions,
-          unsigned lit, const std::vector<unsigned> &next) {
+intervene_Qv(const std::vector<std::pair<unsigned, unsigned>> &interventions,
+             const std::vector<unsigned> &current,
+             const std::vector<unsigned> &next) {
   std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
                                          INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
@@ -398,15 +388,15 @@ intervene(const std::vector<std::pair<unsigned, unsigned>> &interventions,
   // Map inputs and latches from current
   for (unsigned i = 0; i < witness->num_inputs; ++i) {
     aiger_symbol *l = witness->inputs + i;
-    map(l->lit, l->lit);
+    map(l->lit, current.at(l->lit));
   }
   for (unsigned i = 0; i < witness->num_latches; ++i) {
     aiger_symbol *l = witness->latches + i;
-    map(l->lit, l->lit);
+    map(l->lit, current.at(l->lit));
   }
 
   // Intervene "next" literals to point to current in next state
-  for (auto [c, n] : interventions) map(n, next[c]);
+  for (auto [c, n] : interventions) map(n, next.at(c));
 
   // Reencode and gates
   for (unsigned i = 0; i < witness->num_ands; ++i) {
@@ -417,7 +407,20 @@ intervene(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     map(a->lhs, conj(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
 
-  return intervention_map[lit];
+  unsigned fair{0};
+  for (unsigned i = 0; i < witness->num_fairness; i++)
+    fair = disj(fair, aiger_not(intervention_map[witness->fairness[i].lit]));
+
+  unsigned Qv{1};
+  for (unsigned i = 0; i < witness->num_justice; i++) {
+    unsigned rank{fair};
+    for (unsigned j = 0; j < witness->justice[i].size; j++)
+      rank =
+          disj(rank, aiger_not(intervention_map[witness->justice[i].lits[j]]));
+    Qv = conj(Qv, rank);
+  }
+
+  return Qv;
 }
 
 } // namespace
@@ -473,10 +476,11 @@ int main(int argc, char *argv[]) {
     unsigned inductive = imply(inductive_antecedent, inductive_consequent);
     aiger_add_output(check, aiger_not(inductive), "Inductive");
   }
-
-  const unsigned Qts = intervene(interventions, W[1].Qv, map[0][0]);
-  const unsigned Qus = intervene(interventions, W[2].Qv, map[0][0]);
-  const unsigned Qut = intervene(interventions, W[2].Qv, map[0][1]);
+  const unsigned Qst = intervene_Qv(interventions, map[0][0], map[0][1]);
+  const unsigned Qtu = intervene_Qv(interventions, map[0][1], map[0][2]);
+  const unsigned Qts = intervene_Qv(interventions, map[0][1], map[0][0]);
+  const unsigned Qus = intervene_Qv(interventions, map[0][2], map[0][0]);
+  const unsigned Qut = intervene_Qv(interventions, map[0][2], map[0][1]);
   { // Decrease: ∧i∈{s,t}(C'i ∧ P'i) ∧ F'st[L'] → Q'ts
     unsigned decrease_guard{1};
     for (unsigned i = 0; i < 2; ++i)
@@ -501,7 +505,7 @@ int main(int argc, char *argv[]) {
     for (unsigned i = 0; i < 3; ++i)
       consistent_guard = conj(consistent_guard, W[i].C, W[i].P);
     unsigned consistent_antecedent =
-        conj(consistent_guard, W[0].F, W[1].F, W[0].Qv, W[1].Qv);
+        conj(consistent_guard, W[0].F, W[1].F, Qst, Qtu);
     unsigned consistent_consequent{1};
     assert(W[0].Q.size() == W[1].Q.size());
     for (unsigned i = 0; i < W[0].Q.size(); i++)
