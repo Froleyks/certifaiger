@@ -2,11 +2,10 @@
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 bugs="$(pwd)"/bugs
 options="$(pwd)"/options
-aigstates="$bin"/aigstates
 fuzz="$bin"/fuzz
 certified="$bin"/certified
 status="$bin"/status
-for i in aigstates fuzz certified status; do
+for i in fuzz certified status; do
   [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 "$fuzz" >/dev/null || exit 1
@@ -29,11 +28,6 @@ cleanup() {
     echo $(basename "$0"): "with witness of length" $(wc -l wit.aag | awk '{print $1}')
     echo $(basename "$0"): "$(pwd)"/bug.aag
     echo $(basename "$0"): "$(pwd)"/wit.aag
-	if command -v dot >/dev/null; then
-		"$aigstates" bug.aag | dot -Tpdf -o bug.pdf
-		"$aigstates" wit.aag | dot -Tpdf -o wit.pdf
-		echo $(basename "$0"): "$(pwd)"/bug.pdf		
-	fi
   fi
   trap '' EXIT HUP INT QUIT TERM
   exit "$st"
