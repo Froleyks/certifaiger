@@ -17,8 +17,8 @@ echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimite
 cmd=("$runlim" --propagate --single -o "$log")
 [[ -n "${TIME:-}" ]] && cmd+=(--real-time-limit="$TIME")
 [[ -n "${SPACE:-}" ]] && cmd+=(--space-limit="$SPACE")
-[[ -n "${TIME:-}" ]] && cmd=(timeout --kill-after=1s "$((TIME + 10))s" "${cmd[@]}")
 cmd+=("$@")
+[[ -n "${TIME:-}" ]] && cmd=(timeout --kill-after=1s "$((TIME + 10))s" bash -c '( "$@" )' bash "${cmd[@]}")
 
 t="$(date +%s%N)"
 "${cmd[@]}"
