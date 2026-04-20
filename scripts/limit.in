@@ -14,12 +14,14 @@ shift
 
 echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
 
+cmd=("$runlim" --propagate --single -o "$log")
+[[ -n "${TIME:-}" ]] && cmd+=(--real-time-limit="$TIME")
+[[ -n "${SPACE:-}" ]] && cmd+=(--space-limit="$SPACE")
+[[ -n "${TIME:-}" ]] && cmd=("$timeout" --kill-after=1s "$((TIME + 10))s" "${cmd[@]}")
+cmd+=("$@")
+
 t="$(date +%s%N)"
-$runlim --propagate --single \
-    -o "$log" \
-    ${TIME:+--real-time-limit="$TIME"} \
-    ${SPACE:+--space-limit="$SPACE"} \
-    $@
+"${cmd[@]}"
 res=$?
 t="$(($(date +%s%N) - t))"
 t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
