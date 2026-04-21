@@ -477,10 +477,9 @@ int main(int argc, char *argv[]) {
     aiger_add_output(check, aiger_not(inductive), "Inductive");
   }
   const unsigned Qst = intervene_Qv(interventions, map[0][0], map[0][1]);
+  const unsigned Qsu = intervene_Qv(interventions, map[0][0], map[0][2]);
   const unsigned Qtu = intervene_Qv(interventions, map[0][1], map[0][2]);
   const unsigned Qts = intervene_Qv(interventions, map[0][1], map[0][0]);
-  const unsigned Qus = intervene_Qv(interventions, map[0][2], map[0][0]);
-  const unsigned Qut = intervene_Qv(interventions, map[0][2], map[0][1]);
   { // Decrease: ∧i∈{s,t}(C'i ∧ P'i) ∧ F'st[L'] → Q'ts
     unsigned decrease_guard{1};
     for (unsigned i = 0; i < 2; ++i)
@@ -490,12 +489,12 @@ int main(int argc, char *argv[]) {
     unsigned decrease = imply(decrease_antecedent, decrease_consequent);
     aiger_add_output(check, aiger_not(decrease), "Decrease");
   }
-  { // Closure: ∧i∈{s,t,u}(C'i ∧ P'i) ∧ F'st[L'] ∧ Q'ut → Q'us
+  { // Closure: ∧i∈{s,t,u}(C'i ∧ P'i) ∧ F'st[L'] ∧ Q'su → Q'tu
     unsigned closure_guard{1};
     for (unsigned i = 0; i < 3; ++i)
       closure_guard = conj(closure_guard, W[i].C, W[i].P);
-    unsigned closure_antecedent = conj(closure_guard, W[0].F, Qut);
-    unsigned closure_consequent = Qus;
+    unsigned closure_antecedent = conj(closure_guard, W[0].F, Qsu);
+    unsigned closure_consequent = Qtu;
     unsigned closure = imply(closure_antecedent, closure_consequent);
     aiger_add_output(check, aiger_not(closure), "Closure");
   }
