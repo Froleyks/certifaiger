@@ -373,10 +373,11 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
 
 // Encodes the witness rank at time `current` with interventions
 // replaced by their corresponding values from time `next`.
-std::pair<unsigned, std::vector<unsigned>>
+unsigned
 intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
             const std::vector<unsigned> &current,
-            const std::vector<unsigned> &next) {
+            const std::vector<unsigned> &next,
+            std::vector<unsigned> *Q_lits = nullptr) {
   std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
                                          INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
@@ -405,12 +406,11 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     map(a->lhs, conj(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
 
-  std::vector<unsigned> Q_lits;
   unsigned fair{0};
   for (unsigned i = 0; i < witness->num_fairness; i++) {
     unsigned q = aiger_not(intervention_map[witness->fairness[i].lit]);
     fair = disj(fair, q);
-    Q_lits.push_back(q);
+    if (Q_lits) Q_lits->push_back(q);
   }
 
   unsigned Q{1};
@@ -419,12 +419,12 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     for (unsigned j = 0; j < witness->justice[i].size; j++) {
       unsigned q = aiger_not(intervention_map[witness->justice[i].lits[j]]);
       rank = disj(rank, q);
-      Q_lits.push_back(q);
+      if (Q_lits) Q_lits->push_back(q);
     }
     Q = conj(Q, rank);
   }
 
-  return {Q, Q_lits};
+  return Q;
 }
 
 void simulates(const std::array<predicates, times> &W,
@@ -528,10 +528,11 @@ int main(int argc, char *argv[]) {
   simulates(W, M);
   inductive(W);
 
-  auto [Qst, Qst_lits] = intervene_Q(interventions, map[0][0], map[0][1]);
-  auto [Qtu, Qtu_lits] = intervene_Q(interventions, map[0][1], map[0][2]);
-  unsigned Qsu = intervene_Q(interventions, map[0][0], map[0][2]).first;
-  unsigned Qts = intervene_Q(interventions, map[0][1], map[0][0]).first;
+  std::vector<unsigned> Qst_lits, Qtu_lits;
+  unsigned Qst = intervene_Q(interventions, map[0][0], map[0][1], &Qst_lits);
+  unsigned Qtu = intervene_Q(interventions, map[0][1], map[0][2], &Qtu_lits);
+  unsigned Qsu = intervene_Q(interventions, map[0][0], map[0][2]);
+  unsigned Qts = intervene_Q(interventions, map[0][1], map[0][0]);
   ranked(W, Qst_lits, Qtu_lits, Qst, Qtu, Qsu, Qts);
 
   finalize(check_path);
