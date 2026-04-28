@@ -373,10 +373,10 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
 
 // Encodes the witness rank at time `current` with interventions
 // replaced by their corresponding values from time `next`.
-unsigned
-intervene_Qv(const std::vector<std::pair<unsigned, unsigned>> &interventions,
-             const std::vector<unsigned> &current,
-             const std::vector<unsigned> &next) {
+std::pair<unsigned, std::vector<unsigned>>
+intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
+            const std::vector<unsigned> &current,
+            const std::vector<unsigned> &next) {
   std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
                                          INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
@@ -394,10 +394,8 @@ intervene_Qv(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     aiger_symbol *l = witness->latches + i;
     map(l->lit, current.at(l->lit));
   }
-
   // Intervene "next" literals to point to current in next state
   for (auto [c, n] : interventions) map(n, next.at(c));
-
   // Reencode and gates
   for (unsigned i = 0; i < witness->num_ands; ++i) {
     aiger_and *a = witness->ands + i;
@@ -407,32 +405,30 @@ intervene_Qv(const std::vector<std::pair<unsigned, unsigned>> &interventions,
     map(a->lhs, conj(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
 
+  std::vector<unsigned> Q_lits;
   unsigned fair{0};
-  for (unsigned i = 0; i < witness->num_fairness; i++)
-    fair = disj(fair, aiger_not(intervention_map[witness->fairness[i].lit]));
-
-  unsigned Qv{1};
-  for (unsigned i = 0; i < witness->num_justice; i++) {
-    unsigned rank{fair};
-    for (unsigned j = 0; j < witness->justice[i].size; j++)
-      rank =
-          disj(rank, aiger_not(intervention_map[witness->justice[i].lits[j]]));
-    Qv = conj(Qv, rank);
+  for (unsigned i = 0; i < witness->num_fairness; i++) {
+    unsigned q = aiger_not(intervention_map[witness->fairness[i].lit]);
+    fair = disj(fair, q);
+    Q_lits.push_back(q);
   }
 
-  return Qv;
+  unsigned Q{1};
+  for (unsigned i = 0; i < witness->num_justice; i++) {
+    unsigned rank{fair};
+    for (unsigned j = 0; j < witness->justice[i].size; j++) {
+      unsigned q = aiger_not(intervention_map[witness->justice[i].lits[j]]);
+      rank = disj(rank, q);
+      Q_lits.push_back(q);
+    }
+    Q = conj(Q, rank);
+  }
+
+  return {Q, Q_lits};
 }
 
-} // namespace
-
-int main(int argc, char *argv[]) {
-  auto check_path = initialize(argc, argv);
-  if (!stratified(witness))
-    std::cerr << "Witness resets not stratified\n", exit(1);
-  const auto [shared, interventions] = read_mapping();
-  const auto map = unroll(shared);
-  const auto [W, M] = encode_predicates(map, shared);
-
+void simulates(const std::array<predicates, times> &W,
+               const std::array<predicates, times> &M) {
   { // Reset: R[K] ∧ C → R'[K] ∧ C'
     unsigned reset_antecedent = conj(M[0].RK, M[0].C);
     unsigned reset_consequent = conj(W[0].RK, W[0].C);
@@ -463,7 +459,9 @@ int main(int argc, char *argv[]) {
     unsigned live = imply(live_antecedent, live_consequent);
     aiger_add_output(check, aiger_not(live), "Liveness");
   }
+}
 
+void inductive(const std::array<predicates, times> &W) {
   { // Base: R'[L'] ∧ C'→ P'
     unsigned base_antecedent = conj(W[0].R, W[0].C);
     unsigned base_consequent = W[0].P;
@@ -476,10 +474,12 @@ int main(int argc, char *argv[]) {
     unsigned inductive = imply(inductive_antecedent, inductive_consequent);
     aiger_add_output(check, aiger_not(inductive), "Inductive");
   }
-  const unsigned Qst = intervene_Qv(interventions, map[0][0], map[0][1]);
-  const unsigned Qsu = intervene_Qv(interventions, map[0][0], map[0][2]);
-  const unsigned Qtu = intervene_Qv(interventions, map[0][1], map[0][2]);
-  const unsigned Qts = intervene_Qv(interventions, map[0][1], map[0][0]);
+}
+
+void ranked(const std::array<predicates, times> &W,
+            const std::vector<unsigned> &Qst_lits,
+            const std::vector<unsigned> &Qtu_lits, //
+            unsigned Qst, unsigned Qtu, unsigned Qsu, unsigned Qts) {
   { // Decrease: ∧i∈{s,t}(C'i ∧ P'i) ∧ F'st[L'] → Q'ts
     unsigned decrease_guard{1};
     for (unsigned i = 0; i < 2; ++i)
@@ -506,13 +506,33 @@ int main(int argc, char *argv[]) {
     unsigned consistent_antecedent =
         conj(consistent_guard, W[0].F, W[1].F, Qst, Qtu);
     unsigned consistent_consequent{1};
-    assert(W[0].Q.size() == W[1].Q.size());
-    for (unsigned i = 0; i < W[0].Q.size(); i++)
+    assert(Qst_lits.size() == Qtu_lits.size());
+    for (unsigned i = 0; i < Qst_lits.size(); i++)
       consistent_consequent =
-          conj(consistent_consequent, imply(W[0].Q[i], W[1].Q[i]));
+          conj(consistent_consequent, imply(Qst_lits[i], Qtu_lits[i]));
     unsigned consistent = imply(consistent_antecedent, consistent_consequent);
     aiger_add_output(check, aiger_not(consistent), "Consistent");
   }
+}
+
+} // namespace
+
+int main(int argc, char *argv[]) {
+  auto check_path = initialize(argc, argv);
+  if (!stratified(witness))
+    std::cerr << "Witness resets not stratified\n", exit(1);
+  const auto [shared, interventions] = read_mapping();
+  const auto map = unroll(shared);
+  const auto [W, M] = encode_predicates(map, shared);
+
+  simulates(W, M);
+  inductive(W);
+
+  auto [Qst, Qst_lits] = intervene_Q(interventions, map[0][0], map[0][1]);
+  auto [Qtu, Qtu_lits] = intervene_Q(interventions, map[0][1], map[0][2]);
+  unsigned Qsu = intervene_Q(interventions, map[0][0], map[0][2]).first;
+  unsigned Qts = intervene_Q(interventions, map[0][1], map[0][0]).first;
+  ranked(W, Qst_lits, Qtu_lits, Qst, Qtu, Qsu, Qts);
 
   finalize(check_path);
 }

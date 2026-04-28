@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.19)
-include(util.cmake)
-project(certifaiger VERSION 9.0.1)
+project(certifaiger VERSION 10.0.0)
 
 set(CMAKE_CXX_STANDARD 23)
 file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)
 file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
+include(util.cmake)
 
 # Features
 option(CHECK "Setup checking and fuzzing" OFF)

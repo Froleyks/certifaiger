@@ -46,7 +46,7 @@ $sat_solver --sat --quiet "$check".cnf >"$check".model
     echo "$(basename "$0"): Certificate check passed."
     exit 0
 }
-annotated="$(pwd)/$(basename "$model").check"
+annotated="$model".check
 awk '
   NR==FNR {
     if ($1=="v") {
