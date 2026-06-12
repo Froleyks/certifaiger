@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 : "${FUZZER_OPTIONS:=-2 -f -s}"
-export MC_TIMEOUT="${MC_TIMEOUT:=60}"
+export TIME="${TIME:=60}"
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 bugs="$(pwd)"/bugs
 options="$(pwd)"/options

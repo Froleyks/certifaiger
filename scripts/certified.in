@@ -37,7 +37,7 @@ $limit mc \
 	$MC "$MODEL" "$SAT" "$UNSAT" "$@" | tee "$LOG"
 res=${PIPESTATUS[0]}
 echo $(basename "$0"): model checker exit code $res
-if [ $res -eq 2 ]; then
+if [ $res -eq 124 ]; then
 	echo $(basename "$0"): model checker timeout
 	exit 0
 fi
