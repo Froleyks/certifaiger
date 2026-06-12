@@ -1,0 +1,20 @@
+aag 15 1 2 0 12 0 0 1 0
+2
+4 15 0
+6 19 0
+1
+31
+8 2 5
+10 2 7
+12 4 11
+14 9 13
+16 4 10
+18 7 17
+20 5 15
+22 7 19
+24 6 18
+26 5 15
+28 25 26
+30 23 29
+c
+The Witness liveness signal encodes a comparison over all bits of the counter. It is violated when the next-counter is greater.
