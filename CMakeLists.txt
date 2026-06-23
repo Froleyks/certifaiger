@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-project(certifaiger VERSION 10.0.0)
+project(certifaiger VERSION 10.0.1)
 
 set(CMAKE_CXX_STANDARD 23)
 file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)

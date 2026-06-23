@@ -428,7 +428,8 @@ intervene_Q(const std::vector<std::pair<unsigned, unsigned>> &interventions,
 }
 
 void simulates(const std::array<predicates, times> &W,
-               const std::array<predicates, times> &M) {
+               const std::array<predicates, times> &M,
+               const std::vector<unsigned> &Qst_lits) {
   { // Reset: R[K] ∧ C → R'[K] ∧ C'
     unsigned reset_antecedent = conj(M[0].RK, M[0].C);
     unsigned reset_consequent = conj(W[0].RK, W[0].C);
@@ -453,9 +454,9 @@ void simulates(const std::array<predicates, times> &W,
       live_guard = conj(live_guard, M[i].C, W[i].C, W[i].P);
     unsigned live_antecedent = conj(live_guard, W[0].F);
     unsigned live_consequent{1};
-    assert(W[0].Q.size() == M[0].Q.size());
+    assert(Qst_lits.size() == M[0].Q.size());
     for (unsigned i = 0; i < W[0].Q.size(); i++)
-      live_consequent = conj(live_consequent, imply(W[0].Q[i], M[0].Q[i]));
+      live_consequent = conj(live_consequent, imply(Qst_lits[i], M[0].Q[i]));
     unsigned live = imply(live_antecedent, live_consequent);
     aiger_add_output(check, aiger_not(live), "Liveness");
   }
@@ -525,14 +526,14 @@ int main(int argc, char *argv[]) {
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
 
-  simulates(W, M);
-  inductive(W);
-
   std::vector<unsigned> Qst_lits, Qtu_lits;
   unsigned Qst = intervene_Q(interventions, map[0][0], map[0][1], &Qst_lits);
   unsigned Qtu = intervene_Q(interventions, map[0][1], map[0][2], &Qtu_lits);
   unsigned Qsu = intervene_Q(interventions, map[0][0], map[0][2]);
   unsigned Qts = intervene_Q(interventions, map[0][1], map[0][0]);
+
+  simulates(W, M, Qst_lits);
+  inductive(W);
   ranked(W, Qst_lits, Qtu_lits, Qst, Qtu, Qsu, Qts);
 
   finalize(check_path);
