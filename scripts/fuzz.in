@@ -30,6 +30,8 @@ while true; do
             ((unsafe += 1))
         elif grep -q 'certified: model checker timeout' "$out"; then
             ((tout += 1))
+        elif grep -q 'certified: model checker memory out' "$out"; then
+            ((tout += 1))
         else
             echo "$(basename "$0"): ERROR in certified"
             exit 1

@@ -4,17 +4,41 @@ runlim="$bin"/runlim
 for i in runlim; do
     [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
-[ $# -lt 1 ] && echo "usage: $(basename "$0") <executable>" && exit 0
 
-log=/dev/null
+single=1
+while getopts ":m" opt; do
+	case "$opt" in
+		m) single=0 ;;
+		*) echo "usage: $(basename "$0") [-m] <name> <executable> [arg ...]" >&2; exit 1 ;;
+	esac
+done
+shift "$((OPTIND - 1))"
+
+[ $# -lt 1 ] && echo "usage: $(basename "$0") [-m] <name> <executable> [arg ...]" && exit 0
+
+log=
+temp_log=
 name=$1
 shift
 
-[[ -n "${LIMIT_LOG:-}" ]] && log="${LIMIT_LOG}-$name.run"
+if [[ -n "${LIMIT_LOG:-}" ]]; then
+	log="${LIMIT_LOG}-$name.run"
+else
+	temp_name="${name//[^A-Za-z0-9_.-]/_}"
+	temp_log=$(mktemp "${TMPDIR:-/tmp}/limit-$temp_name-XXXXXXXX.run")
+	log="$temp_log"
+fi
+
+cleanup() {
+	[[ -n "$temp_log" ]] && rm -f -- "$temp_log"
+}
+trap cleanup EXIT HUP INT QUIT TERM
 
 echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
 
-cmd=("$runlim" --propagate --single -o "$log")
+cmd=("$runlim" --propagate)
+[[ "$single" == 1 ]] && cmd+=(--single)
+cmd+=(-o "$log")
 [[ -n "${TIME:-}" ]] && cmd+=(--real-time-limit="$TIME")
 [[ -n "${SPACE:-}" ]] && cmd+=(--space-limit="$SPACE")
 cmd+=("$@")
@@ -26,4 +50,10 @@ res=$?
 t="$(($(date +%s%N) - t))"
 t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
 echo "t_$name: $t"
+
+runlim_status="$(sed -n 's/^\[runlim\] status:[[:space:]]*//p' "$log" 2>/dev/null | tail -n 1)"
+case "$runlim_status" in
+	"out of time") res=124 ;;
+	"out of memory") res=137 ;;
+esac
 exit $res

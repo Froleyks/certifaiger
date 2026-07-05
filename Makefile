@@ -5,9 +5,9 @@ all: build/Makefile
 	@cmake --build build --parallel
 	@cmake --install build --prefix .
 build/Makefile: CMakeLists.txt
-	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -DCHECK=ON -B build
+	cmake -DCMAKE_BUILD_TYPE=Release -B build -DSTATIC=ON -DCHECK=ON
 proof: CMakeLists.txt
-	cmake -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -B build -DSAT=cadical -DCADICAL_GIT_TAG="master" -DCHECK=ON -DPROOF=ON
+	cmake -DCMAKE_BUILD_TYPE=Release -B build -DSTATIC=ON -DCHECK=ON -DSAT=cadical -DPROOF=lrat-trim
 	$(MAKE) all
 container: clean
 	podman build -t $(name) .

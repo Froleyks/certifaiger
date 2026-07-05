@@ -4,13 +4,13 @@ bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 limit="$bin"/limit
 certifaiger="$bin"/certifaiger
 sat_solver="$bin/@SAT@"
-[ -n "@SAT_CHECKER@" ] && sat_checker="$bin/@SAT_CHECKER@"
+[ -n "@PROOF@" ] && sat_checker="$bin/@PROOF@"
 echo "$(basename "$0"): Checking with SAT solver $(basename "$sat_solver") $SAT_OPTIONS"
 [ -n "$sat_checker" ] && echo "$(basename "$0"): Checking proofs with $(basename "$sat_checker")"
 aigtocnf="$bin"/aigtocnf
 aigsplit="$bin"/aigsplit
 for i in limit certifaiger sat_solver aigtocnf aigsplit; do
-    [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
+	[ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
 done
 [ $# -lt 2 ] && echo "usage: $(basename "$0") <model> <witness>" && exit 0
 mkdir -p ${TMPDIR:-/tmp}/froleyks-certifaiger
@@ -19,11 +19,11 @@ TMP=$(mktemp -d "${TMPDIR:-/tmp}"/froleyks-certifaiger/$(basename "$0")-XXXXXXXX
 
 main_PID=$BASHPID
 cleanup() {
-    st=$?
-    if [[ $BASHPID -eq $main_PID ]]; then
-        rm -rf -- "$TMP"
-    fi
-    exit "$st"
+	st=$?
+	if [[ $BASHPID -eq $main_PID ]]; then
+		rm -rf -- "$TMP"
+	fi
+	exit "$st"
 }
 trap cleanup EXIT HUP INT QUIT TERM
 
@@ -35,12 +35,12 @@ check="${TMP}/check_${check}"
 shift 2
 
 for f in model witness; do
-    path="${!f}"
-    [ -f "$path" ] || {
-        echo "$(basename "$0"): Error: missing file $path" >&2
-        exit 1
-    }
-    echo "$(basename "$0"): size $f $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
+	path="${!f}"
+	[ -f "$path" ] || {
+		echo "$(basename "$0"): Error: missing file $path" >&2
+		exit 1
+	}
+	echo "$(basename "$0"): size $f $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
 done
 
 echo $(basename "$0"): Checking witness circuit "$witness"
@@ -51,59 +51,75 @@ echo
 
 cd "$TMP" || exit 1
 $aigsplit -n "$check".aig split_ || {
-    echo "$(basename "$0"): Error: aigsplit failed" >&2
-    exit 1
+	echo "$(basename "$0"): Error: aigsplit failed" >&2
+	exit 1
 }
 
 sat() {
-    echo Checking $1
-    local t
-    $aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
-    path="${TMP}/$2"
-    echo "$(basename "$0"): size $1 $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
-    path="${TMP}/$2.cnf"
-    echo "$(basename "$0"): size CNF $1 $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
-    [ -n "$sat_checker" ] && proof="${TMP}/$2.proof"
-    [ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat --no-factor"
-    $limit "$1" \
-        $sat_solver $SAT_OPTIONS $format "${TMP}/$2.cnf" $proof
-    if [ $? -ne 20 ]; then
-        echo "Error: $1 check failed"
-        exit 1
-    fi
-    if [ -n "$sat_checker" ]; then
-        echo "$(basename "$0"): size proof $proof $(wc -l <"$proof") lines $(wc -c <"$proof") bytes"
-        expected=0
-        [ "$(basename "$sat_checker")" = "lrat-trim" ] && expected=20 && quiet=--quiet
-        $limit "check-$1" \
-            $sat_checker $quiet "${TMP}/$2.cnf" $proof
-        if [ $? -ne $expected ]; then
-            echo "Error: $1 proof check failed"
-            exit 1
-        fi
-    fi
-    rm -f "$proof"
+	echo Checking $1
+	local t
+	$aigtocnf "${TMP}/$2" "${TMP}/$2.cnf"
+	path="${TMP}/$2"
+	echo "$(basename "$0"): size $1 $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
+	path="${TMP}/$2.cnf"
+	echo "$(basename "$0"): size CNF $1 $path $(wc -l <"$path") lines $(wc -c <"$path") bytes $(head -n 1 "$path")"
+	if [ -n "$sat_checker" ]; then
+		[ "$(basename "$sat_checker")" = "lrat-trim" ] && format="--lrat"
+		[ "$(basename "$sat_checker")" = "lrat_isa" ] && format="--lrat --no-factor"
+		expected=0
+		[ "$(basename "$sat_checker")" = "lrat-trim" ] && expected=20 && quiet=--quiet
+
+		proof="${TMP}/$2.proof"
+		mkfifo "$proof" || {
+			echo "$(basename "$0"): Error: could not create proof FIFO $proof" >&2
+			exit 1
+		}
+		$limit "$1" \
+			$sat_solver $SAT_OPTIONS $format "${TMP}/$2.cnf" "$proof" &
+		solver_pid=$!
+		$limit "check-$1" \
+			$sat_checker $quiet "${TMP}/$2.cnf" "$proof"
+		checker_res=$?
+		wait "$solver_pid"
+		solver_res=$?
+		if [ $solver_res -ne 20 ]; then
+			echo "Error: $1 check failed"
+			exit 1
+		fi
+		if [ $checker_res -ne $expected ]; then
+			echo "Error: $1 proof check failed"
+			exit 1
+		fi
+		rm -f "$proof"
+	else
+		$limit "$1" \
+			$sat_solver $SAT_OPTIONS "${TMP}/$2.cnf"
+		if [ $? -ne 20 ]; then
+			echo "Error: $1 check failed"
+			exit 1
+		fi
+	fi
 }
 
 PIDS=()
 t="$(date +%s%N)"
 for aig in "$TMP"/*.aig; do
-    [ "$aig" = "$check".aig ] && continue
-    base="$(basename "$aig")"
-    name="${base%.aig}"
-    if $SEQUENTIAL; then
-        sat "$name" "$base" || {
-            echo $(basename "$0"): Certificate check failed.
-            exit 1
-        }
-    else
-        (sat "$name" "$base") &
-        PIDS+=($!)
-    fi
+	[ "$aig" = "$check".aig ] && continue
+	base="$(basename "$aig")"
+	name="${base%.aig}"
+	if $SEQUENTIAL; then
+		sat "$name" "$base" || {
+			echo $(basename "$0"): Certificate check failed.
+			exit 1
+		}
+	else
+		(sat "$name" "$base") &
+		PIDS+=($!)
+	fi
 done
 res=0
 for pid in "${PIDS[@]}"; do
-    wait "$pid" || res=1
+	wait "$pid" || res=1
 done
 t="$(($(date +%s%N) - t))"
 t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"

@@ -37,10 +37,16 @@ $limit mc \
 	$MC "$MODEL" "$SAT" "$UNSAT" "$@" | tee "$LOG"
 res=${PIPESTATUS[0]}
 echo $(basename "$0"): model checker exit code $res
-if [ $res -eq 124 ]; then
-	echo $(basename "$0"): model checker timeout
-	exit 0
-fi
+case "$res" in
+	124)
+		echo $(basename "$0"): model checker timeout
+		exit 0
+		;;
+	137)
+		echo $(basename "$0"): model checker memory out
+		exit 0
+		;;
+esac
 
 if grep -q "^sat$" "$LOG"; then
 	echo $(basename "$0"): Checking SAT
