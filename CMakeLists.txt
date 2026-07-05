@@ -1,10 +1,4 @@
 cmake_minimum_required(VERSION 3.19)
-project(certifaiger VERSION 10.1.0)
-
-set(CMAKE_CXX_STANDARD 23)
-file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)
-file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
-include(util.cmake)
 
 # Features
 option(CHECK "Setup checking and fuzzing" OFF)
@@ -23,6 +17,12 @@ option(CLANG "Use clang/clang++ compilers" OFF)
 option(ASSERT "Enable runtime assertions (even in Release)" OFF)
 option(ASAN "Build with address sanitizer" OFF)
 option(UBSAN "Build with undefined behavior sanitizer" OFF)
+
+include(util.cmake)
+project(certifaiger VERSION 10.1.1)
+set(CMAKE_CXX_STANDARD 23)
+file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)
+file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
 
 add_executable(certifaiger ${sources})
 util_add_options(certifaiger)
