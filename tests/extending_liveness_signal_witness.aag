@@ -1,0 +1,35 @@
+aag 11 1 2 0 8 0 0 1
+2
+4 8
+6 17
+3
+19
+21
+22
+8 1 1
+10 4 7
+12 4 6
+14 2 5
+16 13 15
+18 8 10
+20 8 12
+22 11 13
+c
+Two-bit state space with input-controlled branching from the initial state.
+
+  |
+  v
+ (00)   (01)
+   | \ / |
+  0|  X  |1
+   v / \ v
+ (10)   (11)
+  ↺       ↺
+ 0,1     0,1
+
+The liveness signals are as follows:
+18: (10) -> (10) and (10) -> (11)
+20: (11) -> (11) and (11) -> (10)
+22: (10) -> (**) and (11) -> (**)
+Liveness signals 18 and 20 are unchanged from the model which already satisfied
+Closure and Liveness. Signal 22 extends Qv to now also satisfy Decrease.

@@ -6,8 +6,13 @@ all: build/Makefile
 	@cmake --install build --prefix .
 build/Makefile: CMakeLists.txt
 	cmake -DCMAKE_BUILD_TYPE=Release -B build -DSTATIC=ON -DCHECK=ON
-proof: CMakeLists.txt
+test: all
+	$(MAKE) -C tests all
+lrat-trim: CMakeLists.txt
 	cmake -DCMAKE_BUILD_TYPE=Release -B build -DSTATIC=ON -DCHECK=ON -DSAT=cadical -DPROOF=lrat-trim
+	$(MAKE) all
+lrat_isa: CMakeLists.txt
+	cmake -DCMAKE_BUILD_TYPE=Release -B build -DSTATIC=ON -DCHECK=ON -DSAT=cadical -DPROOF=lrat_isa
 	$(MAKE) all
 container: clean
 	podman build -t $(name) .
@@ -17,4 +22,4 @@ container: clean
 clean:
 	rm -rf build bin
 	-podman rmi $(name)
-.PHONY: all proof container clean
+.PHONY: all test proof container clean

@@ -1,0 +1,19 @@
+aag 10 1 2 0 7 0 0 1
+2
+4 8
+6 17
+2
+19
+21
+8 1 1
+10 4 7
+12 4 6
+14 2 5
+16 13 15
+18 8 10
+20 8 12
+c
+Two-bit state space with input-controlled branching from the initial state.
+State 00 is the initial state. If input 2 is low, the machine moves to
+left state 10. If input 2 is high, it moves to right state 11. Both left
+and right have self loops satisfying one of the liveness signals in the property.

@@ -1,0 +1,34 @@
+The witnesses listed in =expected-invalid= are faulty for various reasons.
+
+Run all test with
+#+begin_src bash
+make
+#+end_src
+
+The =Makefile= checks every =*_witness.*= file in parallel against the matching
+model file obtained by replacing =witness= with =model= in the file name.
+Invalid witnesses are printed unless they are listed in =expected-invalid=.
+Should one of the witnesses expected to be invalid be validated by the checker
+it will be counted as a failure and appear indented.
+
+* Illustration of compositional certification in a model checking pipeline with preprocessing
+01_model.aag 01_witness.aag
+02_forward_model.aag 02_forward_witness.aag
+03_factor_model.aag 03_factor_witness.aag
+
+* Flexible mapping between model and witness
+map_gate_model.aag map_gate_witness.aag
+latch_to_input_model.aag latch_to_input_witness.aag
+
+* Different ways to encode liveness in the witness via interventions
+intervention_model.aag intervention_witness.aag
+intervention_inputs_model.aag intervention_inputs_witness.aag
+
+* Extending liveness signals
+extending_liveness_signal_model.aag extending_liveness_signal_witness.aag
+
+* Stress example
+stress_model.aig stress_witness.aig
+
+* Invalid witness with non stratified reset
+negated_reset_model.aag negated_reset_witness.aag

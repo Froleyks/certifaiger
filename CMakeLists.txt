@@ -19,7 +19,7 @@ option(ASAN "Build with address sanitizer" OFF)
 option(UBSAN "Build with undefined behavior sanitizer" OFF)
 
 include(util.cmake)
-project(certifaiger VERSION 10.1.1)
+project(certifaiger VERSION 10.2.0)
 set(CMAKE_CXX_STANDARD 23)
 file(GLOB headers CONFIGURE_DEPENDS src/*.hpp)
 file(GLOB sources CONFIGURE_DEPENDS src/*.cpp)
