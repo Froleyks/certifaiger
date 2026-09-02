@@ -44,7 +44,8 @@ for f in model witness; do
 done
 
 echo $(basename "$0"): Checking witness circuit "$witness"
-$certifaiger "$model" "$witness" "$check".aig "$@"
+$limit generation \
+	$certifaiger "$model" "$witness" "$check".aig "$@"
 certifaiger_exit=$?
 [ $certifaiger_exit -ne 0 ] && echo "$(basename "$0"): Error: certifaiger failed with exit code $certifaiger_exit)" >&2 && exit 1
 echo
