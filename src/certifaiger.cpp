@@ -71,11 +71,14 @@ void finalize(const char *path) {
   aiger_reset(model);
 }
 
-// Checks if the circuit is stratified (no cyclic dependencies in the reset
-// definition) using Kahn. In addition to ands, latches have an edge to their
-// reset.
-bool stratified(const aiger *circuit) {
+// Check reset stratification of unmapped witness latches using Kahn.
+// Mapped latches are leaves: their reset equations are checked by Reset.
+bool stratified(
+    const aiger *circuit,
+    const std::vector<std::pair<unsigned, unsigned>> &shared) {
   const unsigned n = circuit->maxvar + 1;
+  std::vector<bool> mapped(n);
+  for (const auto &[w, m] : shared) mapped.at(aiger_lit2var(w)) = true;
   std::vector<unsigned> in_degree(n);
   std::vector<unsigned> stack;
   stack.reserve(n);
@@ -86,7 +89,8 @@ bool stratified(const aiger *circuit) {
   }
   for (unsigned i = 0; i < circuit->num_latches; ++i) {
     aiger_symbol *l = circuit->latches + i;
-    if (l->reset != l->lit) in_degree[aiger_lit2var(l->reset)]++;
+    if (!mapped[aiger_lit2var(l->lit)] && l->reset != l->lit)
+      in_degree[aiger_lit2var(l->reset)]++;
   }
   for (unsigned i = 0; i < n; ++i)
     if (!in_degree[i]) stack.push_back(i);
@@ -102,7 +106,9 @@ bool stratified(const aiger *circuit) {
       if (!--in_degree[t]) stack.push_back(t);
     } else if (aiger_symbol *lat = aiger_is_latch(circuit, l)) {
       unsigned r = aiger_lit2var(lat->reset);
-      if (lat->reset != lat->lit && !--in_degree[r]) stack.push_back(r);
+      if (!mapped[aiger_lit2var(l)] && lat->reset != lat->lit &&
+          !--in_degree[r])
+        stack.push_back(r);
     }
   }
   return visited == n;
@@ -528,9 +534,9 @@ void ranked(const std::array<predicates, times> &W, //
 
 int main(int argc, char *argv[]) {
   auto check_path = initialize(argc, argv);
-  if (!stratified(witness))
-    std::cerr << "Witness resets not stratified\n", exit(1);
   const auto [shared, interventions] = read_mapping();
+  if (!stratified(witness, shared))
+    std::cerr << "Unmapped witness resets not stratified\n", exit(1);
   const auto map = unroll(shared);
   const auto [W, M] = encode_predicates(map, shared);
 

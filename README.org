@@ -111,12 +111,11 @@ The /semantic dependency graph/ is the subset of the syntactic dependency graph,
 where an edge $(a, b)$ indicates that
 an assignment exists where a change in $b$ would imply a change in $a$.
 
-If the witness circuit is stratified,
-the Reset check above ensures that the set of shared latches $K$ is at the bottom of the semantic dependency graph of $R'$,
-i.e., the reset of the latches in $K$ in the intersection depends only on inputs and latches in the intersection.
-It follows that any reset of $K$ can be extended to a reset of $L'$.
+Certifaiger requires stratification only for witness latches that are not mapped.
+In the dependency graph, shared witness latches are treated as constants: their reset edges are omitted.
+The Reset check handles the reset equations of mapped latches.
+Acyclic reset dependencies among unmapped latches then allow a satisfying partial reset to be extended to all witness latches.
 
-If the witness circuit is not stratified, it is not guaranteed that a partial reset can be extended, and Certifaiger will fail.
 ** References
 The theory this tool is based on is detailed in our papers.
 Furthermore, we demonstrate how to certify the combination of different preprocessing techniques and safety and liveness model checking algorithms with witness circuits.
