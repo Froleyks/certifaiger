@@ -350,14 +350,56 @@ std::array<std::array<predicates, times>, circuits> encode_predicates(
   return predicates;
 }
 
+// Always match the shape of the model Q (combination of fairness and justice).
+// Additional signals are ignored, and missing signals are set to 1.
+// Existing signals are mapped and negated; padding remains constant true.
+std::vector<unsigned> flatten_Q(const aiger *circuit,
+                                const std::vector<unsigned> &map) {
+  std::vector<unsigned> lits;
+  unsigned size = model->num_fairness;
+  for (unsigned i = 0; i < model->num_justice; i++)
+    size += model->justice[i].size;
+  lits.reserve(size);
+  for (unsigned i = 0; i < model->num_fairness; i++) {
+    unsigned q{1};
+    if (i < circuit->num_fairness) q = aiger_not(map[circuit->fairness[i].lit]);
+    lits.push_back(q);
+  }
+  for (unsigned i = 0; i < model->num_justice; i++) {
+    for (unsigned j = 0; j < model->justice[i].size; j++) {
+      unsigned q{1};
+      if (i < circuit->num_justice && j < circuit->justice[i].size)
+        q = aiger_not(map[circuit->justice[i].lits[j]]);
+      lits.push_back(q);
+    }
+  }
+  assert(lits.size() == size);
+  return lits;
+}
+
+// Reconstruct Q from negated literals in the model's fairness/justice shape.
+unsigned disjoin_Q(const std::vector<unsigned> &lits) {
+  unsigned predicate{1}, fair{0};
+  unsigned pos{0};
+  for (unsigned i = 0; i < model->num_fairness; i++)
+    fair = disj(fair, lits.at(pos++));
+  for (unsigned i = 0; i < model->num_justice; i++) {
+    unsigned rank{fair};
+    for (unsigned j = 0; j < model->justice[i].size; j++)
+      rank = disj(rank, lits.at(pos++));
+    predicate = conj(predicate, rank);
+  }
+  assert(pos == lits.size());
+  return predicate;
+}
+
 // Encodes the witness rank at time `current` with interventions
 // replaced by their corresponding values from time `next`.
-std::vector<unsigned>
-intervene(const aiger *circuit,
-          const std::vector<std::pair<unsigned, unsigned>> &interventions,
+std::pair<unsigned, std::vector<unsigned>>
+intervene(const std::vector<std::pair<unsigned, unsigned>> &interventions,
           const std::vector<unsigned> &current,
           const std::vector<unsigned> &next) {
-  std::vector<unsigned> intervention_map(2 * (circuit->maxvar + 1),
+  std::vector<unsigned> intervention_map(2 * (witness->maxvar + 1),
                                          INVALID_LIT);
   auto map = [&intervention_map](unsigned from, unsigned to) {
     intervention_map.at(from) = to;
@@ -366,81 +408,27 @@ intervene(const aiger *circuit,
   map(0, 0);
 
   // Map inputs and latches from current
-  for (unsigned i = 0; i < circuit->num_inputs; ++i) {
-    aiger_symbol *l = circuit->inputs + i;
+  for (unsigned i = 0; i < witness->num_inputs; ++i) {
+    aiger_symbol *l = witness->inputs + i;
     map(l->lit, current.at(l->lit));
   }
-  for (unsigned i = 0; i < circuit->num_latches; ++i) {
-    aiger_symbol *l = circuit->latches + i;
+  for (unsigned i = 0; i < witness->num_latches; ++i) {
+    aiger_symbol *l = witness->latches + i;
     map(l->lit, current.at(l->lit));
   }
   // Intervene "next" literals to point to current in next state
   for (auto [c, n] : interventions) map(n, next.at(c));
   // Reencode and gates
-  for (unsigned i = 0; i < circuit->num_ands; ++i) {
-    aiger_and *a = circuit->ands + i;
+  for (unsigned i = 0; i < witness->num_ands; ++i) {
+    aiger_and *a = witness->ands + i;
     assert(intervention_map[a->rhs0] != INVALID_LIT);
     assert(intervention_map[a->rhs1] != INVALID_LIT);
     if (intervention_map[a->lhs] != INVALID_LIT) continue;
     map(a->lhs, conj(intervention_map[a->rhs0], intervention_map[a->rhs1]));
   }
 
-  return intervention_map;
-}
-
-std::pair<unsigned, std::vector<unsigned>>
-encode_Q(const aiger *circuit, const std::vector<unsigned> &map) {
-  unsigned predicate{1};
-  std::vector<unsigned> lits;
-  unsigned size = circuit->num_fairness;
-  for (unsigned i = 0; i < circuit->num_justice; i++)
-    size += circuit->justice[i].size;
-  lits.reserve(size);
-  unsigned fair{0};
-  for (unsigned i = 0; i < circuit->num_fairness; i++) {
-    unsigned q = aiger_not(map[circuit->fairness[i].lit]);
-    lits.push_back(q);
-    fair = disj(fair, q);
-  }
-  for (unsigned i = 0; i < circuit->num_justice; i++) {
-    unsigned rank{fair};
-    for (unsigned j = 0; j < circuit->justice[i].size; j++) {
-      unsigned q = aiger_not(map[circuit->justice[i].lits[j]]);
-      lits.push_back(q);
-      rank = disj(rank, q);
-    }
-    predicate = conj(predicate, rank);
-  }
-  assert(lits.size() == size);
-  return {predicate, lits};
-}
-
-// Always match the shape of the model Q (combination of fairness and justice).
-// For each property, additional justice signals in the circuit are ignored,
-// and missing signals are set to 1.
-std::vector<unsigned> flatten_Q_lits(const aiger *circuit,
-                                     const std::vector<unsigned> &map) {
-  std::vector<unsigned> lits;
-  unsigned size = model->num_fairness;
-  for (unsigned i = 0; i < model->num_justice; i++)
-    size += model->justice[i].size;
-  lits.reserve(size);
-  for (unsigned i = 0; i < model->num_fairness; i++) {
-    unsigned lit{1};
-    if (i < circuit->num_fairness)
-      lit = aiger_not(map[circuit->fairness[i].lit]);
-    lits.push_back(lit);
-  }
-  for (unsigned i = 0; i < model->num_justice; i++) {
-    for (unsigned j = 0; j < model->justice[i].size; j++) {
-      unsigned lit{1};
-      if (i < circuit->num_justice && j < circuit->justice[i].size)
-        lit = aiger_not(map[circuit->justice[i].lits[j]]);
-      lits.push_back(lit);
-    }
-  }
-  assert(lits.size() == size);
-  return lits;
+  auto lits = flatten_Q(witness, intervention_map);
+  return {disjoin_Q(lits), lits};
 }
 
 void simulates(const std::array<predicates, times> &W,
@@ -544,20 +532,15 @@ int main(int argc, char *argv[]) {
     std::cerr << "Witness resets not stratified\n", exit(1);
   const auto [shared, interventions] = read_mapping();
   const auto map = unroll(shared);
-  const auto map_st = intervene(witness, interventions, map[0][0], map[0][1]);
-  const auto map_tu = intervene(witness, interventions, map[0][1], map[0][2]);
-  const auto map_su = intervene(witness, interventions, map[0][0], map[0][2]);
-  const auto map_ts = intervene(witness, interventions, map[0][1], map[0][0]);
-
   const auto [W, M] = encode_predicates(map, shared);
-  const auto [Qst, Qst_lits] = encode_Q(witness, map_st);
-  const auto [Qtu, Qtu_lits] = encode_Q(witness, map_tu);
-  const auto Qsu = encode_Q(witness, map_su).first;
-  const auto Qts = encode_Q(witness, map_ts).first;
-  const auto Qst_lits_witness = flatten_Q_lits(witness, map_st);
-  const auto Qst_lits_model = flatten_Q_lits(model, map[1][0]);
 
-  simulates(W, M, Qst_lits_witness, Qst_lits_model);
+  const auto [Qst, Qst_lits] = intervene(interventions, map[0][0], map[0][1]);
+  const auto [Qtu, Qtu_lits] = intervene(interventions, map[0][1], map[0][2]);
+  const auto Qsu = intervene(interventions, map[0][0], map[0][2]).first;
+  const auto Qts = intervene(interventions, map[0][1], map[0][0]).first;
+  const auto Qst_lits_model = flatten_Q(model, map[1][0]);
+
+  simulates(W, M, Qst_lits, Qst_lits_model);
   inductive(W);
   ranked(W, Qst, Qtu, Qsu, Qts, Qst_lits, Qtu_lits);
 

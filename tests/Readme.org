@@ -24,11 +24,11 @@ latch_to_input_model.aag latch_to_input_witness.aag
 intervention_model.aag intervention_witness.aag
 intervention_inputs_model.aag intervention_inputs_witness.aag
 
-* Extending liveness signals
-extending_liveness_signal_model.aag extending_liveness_signal_witness.aag
-
-* Stress example
+* Stress test
 stress_model.aig stress_witness.aig
 
-* Invalid witness with non stratified reset
+* Invalid: witness with non stratified reset
 negated_reset_model.aag negated_reset_witness.aag
+
+* Invalid: Extending liveness signals in the witness to meet closure is not valid
+extending_liveness_signal_model.aag extending_liveness_signal_witness.aag
