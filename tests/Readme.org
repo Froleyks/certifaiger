@@ -24,10 +24,12 @@ latch_to_input_model.aag latch_to_input_witness.aag
 intervention_model.aag intervention_witness.aag
 intervention_inputs_model.aag intervention_inputs_witness.aag
 
-* K-liveness
-k-liveness_model.aag k-liveness_witness.aag
+* Intervention mapping
+intervention_mapping_implicit_model.aag intervention_mapping_implicit_witness.aag
+intervention_mapping_explicit_model.aag intervention_mapping_explicit_witness.aag
 
 A k-liveness run adding a single extra live.
+The explicit intervention mapping matches the default implicit mapping, which replaces each latches next state function with the latches value in the second (next) state.
 
 * Stress test
 stress_model.aig stress_witness.aig
