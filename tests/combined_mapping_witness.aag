@@ -1,0 +1,7 @@
+aag 1 0 1 0 0 1
+2 2
+2
+l0 = 4 < 2
+c
+The witness latch maps to the second model latch. Its shared mapping and
+self intervention are given together in one symbol name.

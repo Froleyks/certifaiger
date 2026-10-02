@@ -20,9 +20,20 @@ it will be counted as a failure and appear indented.
 map_gate_model.aag map_gate_witness.aag
 latch_to_input_model.aag latch_to_input_witness.aag
 
+* Combined shared and intervention mappings
+combined_mapping_model.aag combined_mapping_witness.aag
+
+The witness latch maps to the second model latch and intervenes on itself.
+Both mappings are given in the same symbol name: =l0 = 4 < 2=.
+
 * Different ways to encode liveness in the witness via interventions
 intervention_model.aag intervention_witness.aag
 intervention_inputs_model.aag intervention_inputs_witness.aag
+
+* Interventions on inputs
+input_intervention_model.aag input_intervention_witness.aag
+
+The intervention =i0 < 2= uses the future value of an input.
 
 * Intervention mapping
 intervention_mapping_implicit_model.aag intervention_mapping_implicit_witness.aag

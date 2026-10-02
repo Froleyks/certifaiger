@@ -1,0 +1,6 @@
+aag 2 0 2 0 0 1
+2 2 1
+4 4
+4
+c
+The first latch stays at 1; the second stays at 0 and is the bad signal.

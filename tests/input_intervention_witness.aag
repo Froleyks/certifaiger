@@ -1,0 +1,6 @@
+aag 1 1 0 0 0 1
+2
+0
+i0 < 2
+c
+Use the future value of an input. Conceptually Qxy can be seen as an edge from x to y in the state space where each state is a full assignment to the Latches and Inputs. This intuition motivats that Q is allowed to mention y's inputs.
