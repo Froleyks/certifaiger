@@ -1,3 +1,8 @@
+# runlim monitors processes through Linux's /proc filesystem.
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  return()
+endif()
+
 include(ExternalProject)
 set(RUNLIM_GIT_TAG "master" CACHE STRING "runlim git commit hash or tag to checkout")
 

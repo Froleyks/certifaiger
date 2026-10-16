@@ -14,6 +14,7 @@ endif()
 
 FetchContent_Declare(aiger
   ${_aiger_fetch_args}
-  PATCH_COMMAND cp ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt .
+  SOURCE_SUBDIR certifaiger-cmake
 )
 FetchContent_MakeAvailable(aiger)
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}" "${aiger_BINARY_DIR}")

@@ -62,10 +62,12 @@ function(util_add_options target)
         -Wthread-safety # only effective with annotations; harmless otherwise
         -Wrange-loop-analysis)
 
-    if(CLANG)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       target_compile_options(${target} PRIVATE ${_warn_common} ${_warn_clang})
-    else()
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       target_compile_options(${target} PRIVATE ${_warn_common} ${_warn_gcc_only})
+    else()
+      target_compile_options(${target} PRIVATE ${_warn_common})
     endif()
   endif()
 

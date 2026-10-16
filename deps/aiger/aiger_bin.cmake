@@ -1,5 +1,9 @@
 include(ExternalProject)
 set(AIGER_TOOLS aigtocnf aigsim aigfuzz aigdd aigtoaig aigor aigsplit aigunfair)
+set(AIGER_CONFIGURE_COMMAND ./configure.sh)
+if(STATIC)
+  list(APPEND AIGER_CONFIGURE_COMMAND -static)
+endif()
 
 set(AIGER_DIR "${CMAKE_SOURCE_DIR}/../aiger" CACHE PATH "Path to a local aiger checkout")
 cmake_path(NORMAL_PATH AIGER_DIR)
@@ -19,7 +23,7 @@ ExternalProject_Add(
   ${_aiger_source_args}
   BUILD_IN_SOURCE 1
   UPDATE_COMMAND ""
-  CONFIGURE_COMMAND ./configure.sh -static
+  CONFIGURE_COMMAND ${AIGER_CONFIGURE_COMMAND}
   BUILD_COMMAND make -j ${AIGER_TOOLS}
   INSTALL_COMMAND cp ${AIGER_TOOLS} ${CMAKE_CURRENT_BINARY_DIR} && make clean)
 foreach(tool IN LISTS AIGER_TOOLS)

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 bin="$(cd -- "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
-runlim="$bin"/runlim
-for i in runlim; do
-    [ ! -x "${!i}" ] && echo "$(basename "$0"): missing executable $i (${!i})" >&2 && exit 1
-done
+runlim=
+if [[ "@CMAKE_SYSTEM_NAME@" == Linux ]]; then
+	runlim="$bin"/runlim
+	[ ! -x "$runlim" ] && echo "$(basename "$0"): missing executable runlim ($runlim)" >&2 && exit 1
+fi
+timeout_cmd=$(command -v timeout || command -v gtimeout || true)
 
 single=1
 while getopts ":m" opt; do
@@ -21,28 +23,31 @@ temp_log=
 name=$1
 shift
 
-if [[ -n "${LIMIT_LOG:-}" ]]; then
-	log="${LIMIT_LOG}-$name.run"
-else
-	temp_name="${name//[^A-Za-z0-9_.-]/_}"
-	temp_log=$(mktemp "${TMPDIR:-/tmp}/limit-$temp_name-XXXXXXXX.run")
-	log="$temp_log"
+cmd=("$@")
+if [[ -n "$runlim" ]]; then
+	if [[ -n "${LIMIT_LOG:-}" ]]; then
+		log="${LIMIT_LOG}-$name.run"
+	else
+		temp_name="${name//[^A-Za-z0-9_.-]/_}"
+		temp_log=$(mktemp "${TMPDIR:-/tmp}/limit-$temp_name-XXXXXXXX.run")
+		log="$temp_log"
+	fi
+	cleanup() {
+		[[ -n "$temp_log" ]] && rm -f -- "$temp_log"
+	}
+	trap cleanup EXIT HUP INT QUIT TERM
+	[[ -n "${TIME:-}${SPACE:-}" ]] && echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
+	cmd=("$runlim" --propagate)
+	[[ "$single" == 1 ]] && cmd+=(--single)
+	cmd+=(-o "$log")
+	[[ -n "${TIME:-}" ]] && cmd+=(--real-time-limit="$TIME")
+	[[ -n "${SPACE:-}" ]] && cmd+=(--space-limit="$SPACE")
+	cmd+=("$@")
+	[[ -n "${TIME:-}" && -n "$timeout_cmd" ]] && cmd=("$timeout_cmd" --kill-after=1s "$((TIME + 10))s" bash -c '( "$@" )' bash "${cmd[@]}")
+elif [[ -n "${TIME:-}" && -n "$timeout_cmd" ]]; then
+	echo "$(basename "$0") $name to $TIME seconds"
+	cmd=("$timeout_cmd" --kill-after=1s "${TIME}s" "$@")
 fi
-
-cleanup() {
-	[[ -n "$temp_log" ]] && rm -f -- "$temp_log"
-}
-trap cleanup EXIT HUP INT QUIT TERM
-
-echo "$(basename "$0") $name to ${TIME:-unlimited} seconds and ${SPACE:-unlimited} MB"
-
-cmd=("$runlim" --propagate)
-[[ "$single" == 1 ]] && cmd+=(--single)
-cmd+=(-o "$log")
-[[ -n "${TIME:-}" ]] && cmd+=(--real-time-limit="$TIME")
-[[ -n "${SPACE:-}" ]] && cmd+=(--space-limit="$SPACE")
-cmd+=("$@")
-[[ -n "${TIME:-}" ]] && cmd=(timeout --kill-after=1s "$((TIME + 10))s" bash -c '( "$@" )' bash "${cmd[@]}")
 
 t="$(date +%s%N)"
 "${cmd[@]}"
@@ -51,9 +56,11 @@ t="$(($(date +%s%N) - t))"
 t="$(printf '%d.%09d' "$((t / 1000000000))" "$((t % 1000000000))")"
 echo "t_$name: $t"
 
-runlim_status="$(sed -n 's/^\[runlim\] status:[[:space:]]*//p' "$log" 2>/dev/null | tail -n 1)"
-case "$runlim_status" in
-	"out of time") res=124 ;;
-	"out of memory") res=137 ;;
-esac
+if [[ -n "$runlim" ]]; then
+	runlim_status="$(sed -n 's/^\[runlim\] status:[[:space:]]*//p' "$log" 2>/dev/null | tail -n 1)"
+	case "$runlim_status" in
+		"out of time") res=124 ;;
+		"out of memory") res=137 ;;
+	esac
+fi
 exit $res
